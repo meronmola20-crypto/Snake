@@ -126,20 +126,26 @@
     highScore = Number(localStorage.getItem("snakeHighScore")) || 0;
     highEl.textContent = highScore;
 
-    // מיקומי מכשולים קבועים על הלוח
+    // מיקומי מכשולים = גזעי עץ אנכיים (כל שלישייה = עץ אחד)
     const OBSTACLES = [
-      { x: 5, y: 5 }, { x: 5, y: 6 }, { x: 5, y: 7 },
-      { x: 14, y: 12 }, { x: 15, y: 12 }, { x: 16, y: 12 },
-      { x: 9, y: 15 }, { x: 9, y: 16 }, { x: 9, y: 17 },
+      { x: 5, y: 4 }, { x: 5, y: 5 }, { x: 5, y: 6 },
+      { x: 15, y: 10 }, { x: 15, y: 11 }, { x: 15, y: 12 },
+      { x: 9, y: 14 }, { x: 9, y: 15 }, { x: 9, y: 16 },
     ];
 
-    // כתמי עלווה סטטיים לרקע הג'ונגל
-    const FOLIAGE = Array.from({ length: 18 }, (_, i) => ({
-      x: (i * 97) % canvas.width,
-      y: (i * 53 + 30) % canvas.height,
-      r: 30 + (i * 17) % 40,
-      a: 0.04 + (i % 3) * 0.02,
-    }));
+    // עלים מצוירים לרקע הג'ונגל — מיקומים קבועים בפינות ובשוליים
+    const LEAVES = [
+      { x: 28,  y: 42,  size: 46, angle: -0.6, color: "rgba(22,101,52,0.55)" },
+      { x: 72,  y: 20,  size: 32, angle: 0.4,  color: "rgba(21,128,61,0.45)" },
+      { x: 452, y: 36,  size: 48, angle: 0.7,  color: "rgba(22,101,52,0.55)" },
+      { x: 414, y: 16,  size: 30, angle: -0.3, color: "rgba(21,128,61,0.4)" },
+      { x: 24,  y: 446, size: 50, angle: 0.5,  color: "rgba(20,83,45,0.6)" },
+      { x: 66,  y: 466, size: 34, angle: -0.5, color: "rgba(22,101,52,0.5)" },
+      { x: 456, y: 448, size: 52, angle: -0.6, color: "rgba(20,83,45,0.6)" },
+      { x: 418, y: 470, size: 34, angle: 0.5,  color: "rgba(22,101,52,0.5)" },
+      { x: 240, y: 10,  size: 28, angle: 0.1,  color: "rgba(21,128,61,0.32)" },
+      { x: 240, y: 472, size: 40, angle: 3.2,  color: "rgba(20,83,45,0.5)" },
+    ];
 
     function samePos(a, b) { return a.x === b.x && a.y === b.y; }
 
@@ -204,7 +210,7 @@
         scoreEl.textContent = score;
         // האצה הדרגתית עם רצפת מהירות
         tickInterval = Math.max(60, tickInterval - 5);
-        tongueUntil = performance.now() + 800;   // הלשון יוצאת לרגע אחרי אכילה
+        tongueUntil = performance.now() + 1400;  // אחרי אכילה הלשון בחוץ ליותר זמן
         placeApple();
       } else {
         snake.pop();
@@ -215,36 +221,72 @@
       return { x: pos.x * CELL + CELL / 2, y: pos.y * CELL + CELL / 2 };
     }
 
-    // רקע ג'ונגלי — גרדיאנט ירוק כהה עם כתמי עלווה
-    function drawJungleBackground() {
-      const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      g.addColorStop(0, "#14532d");
-      g.addColorStop(1, "#052e16");
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      for (const spot of FOLIAGE) {
-        ctx.fillStyle = `rgba(132, 204, 22, ${spot.a})`;
-        ctx.beginPath();
-        ctx.arc(spot.x, spot.y, spot.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    // עלה מצויר בודד (צורת עלה עם עורק אמצעי)
+    function drawLeaf(l) {
+      ctx.save();
+      ctx.translate(l.x, l.y);
+      ctx.rotate(l.angle);
+      ctx.fillStyle = l.color;
+      ctx.beginPath();
+      ctx.moveTo(0, -l.size);
+      ctx.quadraticCurveTo(l.size * 0.7, 0, 0, l.size);
+      ctx.quadraticCurveTo(-l.size * 0.7, 0, 0, -l.size);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(5,46,22,0.35)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -l.size * 0.85);
+      ctx.lineTo(0, l.size * 0.85);
+      ctx.stroke();
+      ctx.restore();
     }
 
-    // מכשול = בול עץ ג'ונגלי עם טבעות
-    function drawObstacle(o) {
+    // רקע ג'ונגל מצויר — גרדיאנט חמים עם עלים גדולים בפינות
+    function drawJungleBackground() {
+      const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      g.addColorStop(0, "#1b7a3d");
+      g.addColorStop(1, "#083d1e");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      LEAVES.forEach(drawLeaf);
+    }
+
+    // מכשול = גזע עץ עם קליפה, וצמרת עלים בקצה העליון
+    function drawTrunk(o) {
       const x = o.x * CELL, y = o.y * CELL;
-      ctx.fillStyle = "#7c4a21";
-      ctx.beginPath();
-      ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, 5);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,0.25)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(x + CELL / 2, y + CELL / 2, CELL * 0.28, 0, Math.PI * 2);
-      ctx.moveTo(x + CELL / 2 + CELL * 0.14, y + CELL / 2);
-      ctx.arc(x + CELL / 2, y + CELL / 2, CELL * 0.14, 0, Math.PI * 2);
-      ctx.stroke();
+      // גזע — גרדיאנט חום עם קליפה
+      const g = ctx.createLinearGradient(x, 0, x + CELL, 0);
+      g.addColorStop(0, "#4a2c14");
+      g.addColorStop(0.5, "#8a5a2b");
+      g.addColorStop(1, "#4a2c14");
+      ctx.fillStyle = g;
+      ctx.fillRect(x + 3, y, CELL - 6, CELL);
+      // קווי קליפה אנכיים
+      ctx.strokeStyle = "rgba(0,0,0,0.28)";
+      ctx.lineWidth = 1.5;
+      for (const dx of [-3, 2]) {
+        ctx.beginPath();
+        ctx.moveTo(x + CELL / 2 + dx, y);
+        ctx.lineTo(x + CELL / 2 + dx, y + CELL);
+        ctx.stroke();
+      }
+      // צמרת עלים על הקצה העליון של הגזע
+      const hasAbove = obstacles.some(t => t.x === o.x && t.y === o.y - 1);
+      if (!hasAbove) {
+        const cx = x + CELL / 2, cy = y - CELL * 0.15;
+        ctx.fillStyle = "#166534";
+        for (const [ox, oy, r] of [[-10, 3, 12], [10, 3, 12], [0, -9, 14], [0, 5, 13]]) {
+          ctx.beginPath();
+          ctx.arc(cx + ox, cy + oy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = "#22c55e";
+        for (const [ox, oy, r] of [[-6, -2, 6], [6, -2, 6], [0, -5, 7]]) {
+          ctx.beginPath();
+          ctx.arc(cx + ox, cy + oy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
 
     // הכדור = פרי ג'ונגל אדום עם עלה קטן
@@ -309,11 +351,13 @@
       const f = dir;                          // כיוון קדימה
       const p = { x: -dir.y, y: dir.x };      // וקטור ניצב
 
-      // לשון מפוצלת שמבצבצת (בעיקר לרגע אחרי אכילה)
+      // לשון מפוצלת: מבצבצת בקצרה כל כמה שניות, ויוצאת יותר בזמן אכילה
       const now = performance.now();
-      if (now < tongueUntil) {
+      const eating = now < tongueUntil;
+      const idleFlick = (now % 3000) < 450;   // הצצה קצרה כל 3 שניות
+      if (eating || idleFlick) {
         const flick = 0.6 + 0.4 * Math.abs(Math.sin(now / 50));
-        const len = CELL * 0.55 * flick;
+        const len = CELL * (eating ? 0.62 : 0.42) * flick;
         const base = { x: c.x + f.x * CELL * 0.42, y: c.y + f.y * CELL * 0.42 };
         const tip = { x: base.x + f.x * len, y: base.y + f.y * len };
         const fork = len * 0.4;
@@ -376,7 +420,7 @@
 
     function draw() {
       drawJungleBackground();
-      obstacles.forEach(drawObstacle);
+      obstacles.forEach(drawTrunk);
       drawFruit(apple);
       drawSnake();
     }
