@@ -145,6 +145,18 @@
       { x: 418, y: 470, size: 34, angle: 0.5,  color: "rgba(22,101,52,0.5)" },
       { x: 240, y: 10,  size: 28, angle: 0.1,  color: "rgba(21,128,61,0.32)" },
       { x: 240, y: 472, size: 40, angle: 3.2,  color: "rgba(20,83,45,0.5)" },
+      { x: 95,  y: 55,  size: 30, angle: 0.9,  color: "rgba(147,51,234,0.28)" },  // נגיעת סגול
+      { x: 400, y: 445, size: 34, angle: -0.9, color: "rgba(126,58,242,0.26)" },  // נגיעת סגול
+    ];
+
+    // פרחים צבעוניים קטנים לפינות ולשוליים
+    const FLOWERS = [
+      { x: 56,  y: 74,  r: 7, petal: "#c084fc", center: "#facc15" }, // סגול
+      { x: 430, y: 58,  r: 7, petal: "#f0abfc", center: "#fde047" }, // ורוד
+      { x: 42,  y: 415, r: 8, petal: "#7dd3fc", center: "#fde047" }, // תכלת
+      { x: 446, y: 418, r: 7, petal: "#a78bfa", center: "#fca5a5" }, // סגול
+      { x: 205, y: 28,  r: 6, petal: "#818cf8", center: "#fde047" }, // כחול-סגול
+      { x: 300, y: 456, r: 7, petal: "#f9a8d4", center: "#fde047" }, // ורוד
     ];
 
     function samePos(a, b) { return a.x === b.x && a.y === b.y; }
@@ -241,14 +253,38 @@
       ctx.restore();
     }
 
-    // רקע ג'ונגל מצויר — גרדיאנט חמים עם עלים גדולים בפינות
+    // פרח מצויר — עלי כותרת סביב מרכז
+    function drawFlower(fl) {
+      ctx.fillStyle = fl.petal;
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(fl.x + Math.cos(a) * fl.r, fl.y + Math.sin(a) * fl.r, fl.r * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = fl.center;
+      ctx.beginPath();
+      ctx.arc(fl.x, fl.y, fl.r * 0.72, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // רקע ג'ונגל מצויר — גרדיאנט ירוק, זוהר שמיים כחול למעלה, עלים ופרחים
     function drawJungleBackground() {
       const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
       g.addColorStop(0, "#1b7a3d");
       g.addColorStop(1, "#083d1e");
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // אור שמיים כחול עדין שמבצבץ מבין הצמרות
+      const sky = ctx.createRadialGradient(canvas.width / 2, -40, 20, canvas.width / 2, -40, 280);
+      sky.addColorStop(0, "rgba(125,211,252,0.35)");
+      sky.addColorStop(1, "rgba(125,211,252,0)");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
       LEAVES.forEach(drawLeaf);
+      FLOWERS.forEach(drawFlower);
     }
 
     // מכשול = גזע עץ עם קליפה, וצמרת עלים בקצה העליון
