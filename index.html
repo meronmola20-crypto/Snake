@@ -82,6 +82,7 @@
 <body>
   <h1>Snake 🐍</h1>
   <div class="scoreboard">
+    <div>שלב: <span id="level">1</span></div>
     <div>ניקוד: <span id="score">0</span></div>
     <div>שיא: <span id="high">0</span></div>
   </div>
@@ -91,7 +92,7 @@
 
     <div class="overlay" id="startScreen">
       <h2>Snake 🐍</h2>
-      <p>אכלו את התפוחים, גדלו, והיזהרו מהקירות והמכשולים!</p>
+      <p>אכלו פירות, גדלו ועברו שלבים! עברו דרך הקירות, אך היזהרו מהעצים.</p>
       <button class="btn" id="startBtn">התחל משחק</button>
       <p class="hint">שליטה: מקשי חצים או W A S D</p>
     </div>
@@ -113,6 +114,7 @@
     const ROWS = canvas.height / CELL;      // מספר שורות
 
     const scoreEl = document.getElementById("score");
+    const levelEl = document.getElementById("level");
     const highEl = document.getElementById("high");
     const finalScoreEl = document.getElementById("finalScore");
     const startScreen = document.getElementById("startScreen");
@@ -122,47 +124,87 @@
     let state = "MENU";                    // MENU | PLAYING | GAME_OVER
     let lastTick = 0;
     let tongueUntil = 0;                    // עד מתי הלשון בחוץ (אחרי אכילה)
+    let level = 1;                          // שלב נוכחי
+    let fireCells = [];                     // תאי אש (רק בשלב הוולקני)
+    let fleeing = false;                    // האם הפרי בורח (שלב הגשם)
+    let moveTicks = 0;                      // מונה צעדים (לפרי הבורח)
+    let levelBannerUntil = 0;              // עד מתי מוצג באנר השלב
 
     highScore = Number(localStorage.getItem("snakeHighScore")) || 0;
     highEl.textContent = highScore;
 
-    // מיקומי מכשולים = גזעי עץ אנכיים (כל שלישייה = עץ אחד)
-    const OBSTACLES = [
-      { x: 5, y: 4 }, { x: 5, y: 5 }, { x: 5, y: 6 },
-      { x: 15, y: 10 }, { x: 15, y: 11 }, { x: 15, y: 12 },
-      { x: 9, y: 14 }, { x: 9, y: 15 }, { x: 9, y: 16 },
+    // ===== שלבים: לכל שלב נושא ג'ונגל, מכשולים ומנגנון משלו =====
+    const LEVELS = [
+      { // שלב 1 — יער ירוק קלאסי
+        name: "יער ירוק",
+        theme: { bgTop: "#1b7a3d", bgBottom: "#083d1e", glow: "125,211,252", glowA: 0.35,
+                 leaf: "20,83,45", accentLeaf: "22,101,52",
+                 trunkDark: "#4a2c14", trunkMid: "#8a5a2b", canopyDark: "#166534", canopyLight: "#22c55e",
+                 flowers: ["#c084fc", "#f0abfc", "#7dd3fc", "#a78bfa", "#818cf8", "#f9a8d4"],
+                 fruit: "#ef4444", fruitLeaf: "#22c55e" },
+        obstacles: [ {x:5,y:4},{x:5,y:5},{x:5,y:6}, {x:15,y:10},{x:15,y:11},{x:15,y:12}, {x:9,y:14},{x:9,y:15},{x:9,y:16} ],
+      },
+      { // שלב 2 — ג'ונגל שקיעה, מבוך עצים
+        name: "ג'ונגל שקיעה",
+        theme: { bgTop: "#b45309", bgBottom: "#3b1a06", glow: "251,191,36", glowA: 0.4,
+                 leaf: "63,98,18", accentLeaf: "101,116,20",
+                 trunkDark: "#3f2412", trunkMid: "#7c4a21", canopyDark: "#4d7c0f", canopyLight: "#84cc16",
+                 flowers: ["#fb923c", "#fbbf24", "#f87171", "#fca5a5", "#fdba74", "#f472b6"],
+                 fruit: "#38bdf8", fruitLeaf: "#22c55e" },
+        obstacles: [ {x:4,y:3},{x:4,y:4},{x:4,y:5}, {x:16,y:4},{x:16,y:5},{x:16,y:6}, {x:6,y:14},{x:6,y:15},{x:6,y:16}, {x:14,y:13},{x:14,y:14},{x:14,y:15}, {x:10,y:8},{x:10,y:9} ],
+      },
+      { // שלב 3 — ג'ונגל גשם, פרי בורח
+        name: "ג'ונגל גשם",
+        theme: { bgTop: "#0f766e", bgBottom: "#042f2e", glow: "94,234,212", glowA: 0.38,
+                 leaf: "6,78,59", accentLeaf: "13,148,136",
+                 trunkDark: "#3f2412", trunkMid: "#6b4423", canopyDark: "#065f46", canopyLight: "#14b8a6",
+                 flowers: ["#5eead4", "#7dd3fc", "#a5f3fc", "#67e8f9", "#99f6e4", "#38bdf8"],
+                 fruit: "#fb7185", fruitLeaf: "#4ade80" },
+        obstacles: [ {x:3,y:6},{x:3,y:7},{x:3,y:8}, {x:17,y:6},{x:17,y:7},{x:17,y:8}, {x:10,y:3},{x:10,y:4}, {x:6,y:16},{x:6,y:17}, {x:14,y:16},{x:14,y:17} ],
+        fleeing: true,
+      },
+      { // שלב 4 — ג'ונגל לילה וולקני, אש לסירוגין
+        name: "ג'ונגל וולקני",
+        theme: { bgTop: "#4c1d95", bgBottom: "#1e1b4b", glow: "239,68,68", glowA: 0.3,
+                 leaf: "49,46,129", accentLeaf: "76,29,149",
+                 trunkDark: "#292524", trunkMid: "#57534e", canopyDark: "#3730a3", canopyLight: "#7c3aed",
+                 flowers: ["#f472b6", "#c084fc", "#f0abfc", "#818cf8", "#fb7185", "#e879f9"],
+                 fruit: "#fde047", fruitLeaf: "#a3e635" },
+        obstacles: [ {x:4,y:4},{x:4,y:5}, {x:16,y:14},{x:16,y:15}, {x:10,y:2},{x:10,y:3} ],
+        fire: [ {x:8,y:10},{x:9,y:10},{x:10,y:10},{x:11,y:10}, {x:8,y:11},{x:9,y:11},{x:10,y:11},{x:11,y:11} ],
+      },
     ];
 
-    // עלים מצוירים לרקע הג'ונגל — מיקומים קבועים בפינות ובשוליים
+    let theme = LEVELS[0].theme;           // נושא הצבעים של השלב הנוכחי
+
+    // עלים מצוירים לרקע (מיקומים קבועים; הצבע מגיע מנושא השלב)
     const LEAVES = [
-      { x: 28,  y: 42,  size: 46, angle: -0.6, color: "rgba(22,101,52,0.55)" },
-      { x: 72,  y: 20,  size: 32, angle: 0.4,  color: "rgba(21,128,61,0.45)" },
-      { x: 452, y: 36,  size: 48, angle: 0.7,  color: "rgba(22,101,52,0.55)" },
-      { x: 414, y: 16,  size: 30, angle: -0.3, color: "rgba(21,128,61,0.4)" },
-      { x: 24,  y: 446, size: 50, angle: 0.5,  color: "rgba(20,83,45,0.6)" },
-      { x: 66,  y: 466, size: 34, angle: -0.5, color: "rgba(22,101,52,0.5)" },
-      { x: 456, y: 448, size: 52, angle: -0.6, color: "rgba(20,83,45,0.6)" },
-      { x: 418, y: 470, size: 34, angle: 0.5,  color: "rgba(22,101,52,0.5)" },
-      { x: 240, y: 10,  size: 28, angle: 0.1,  color: "rgba(21,128,61,0.32)" },
-      { x: 240, y: 472, size: 40, angle: 3.2,  color: "rgba(20,83,45,0.5)" },
-      { x: 95,  y: 55,  size: 30, angle: 0.9,  color: "rgba(147,51,234,0.28)" },  // נגיעת סגול
-      { x: 400, y: 445, size: 34, angle: -0.9, color: "rgba(126,58,242,0.26)" },  // נגיעת סגול
+      { x: 28,  y: 42,  size: 46, angle: -0.6, a: 0.55, accent: true },
+      { x: 72,  y: 20,  size: 32, angle: 0.4,  a: 0.45 },
+      { x: 452, y: 36,  size: 48, angle: 0.7,  a: 0.55, accent: true },
+      { x: 414, y: 16,  size: 30, angle: -0.3, a: 0.4 },
+      { x: 24,  y: 446, size: 50, angle: 0.5,  a: 0.6 },
+      { x: 66,  y: 466, size: 34, angle: -0.5, a: 0.5, accent: true },
+      { x: 456, y: 448, size: 52, angle: -0.6, a: 0.6 },
+      { x: 418, y: 470, size: 34, angle: 0.5,  a: 0.5, accent: true },
+      { x: 240, y: 10,  size: 28, angle: 0.1,  a: 0.32 },
+      { x: 240, y: 472, size: 40, angle: 3.2,  a: 0.5 },
+      { x: 95,  y: 55,  size: 30, angle: 0.9,  a: 0.35, accent: true },
+      { x: 400, y: 445, size: 34, angle: -0.9, a: 0.35, accent: true },
     ];
 
-    // פרחים צבעוניים קטנים לפינות ולשוליים
+    // פרחים (מיקומים קבועים; הצבע מגיע מפלטת הנושא)
     const FLOWERS = [
-      { x: 56,  y: 74,  r: 7, petal: "#c084fc", center: "#facc15" }, // סגול
-      { x: 430, y: 58,  r: 7, petal: "#f0abfc", center: "#fde047" }, // ורוד
-      { x: 42,  y: 415, r: 8, petal: "#7dd3fc", center: "#fde047" }, // תכלת
-      { x: 446, y: 418, r: 7, petal: "#a78bfa", center: "#fca5a5" }, // סגול
-      { x: 205, y: 28,  r: 6, petal: "#818cf8", center: "#fde047" }, // כחול-סגול
-      { x: 300, y: 456, r: 7, petal: "#f9a8d4", center: "#fde047" }, // ורוד
+      { x: 56,  y: 74,  r: 7 }, { x: 430, y: 58,  r: 7 }, { x: 42,  y: 415, r: 8 },
+      { x: 446, y: 418, r: 7 }, { x: 205, y: 28,  r: 6 }, { x: 300, y: 456, r: 7 },
     ];
 
     function samePos(a, b) { return a.x === b.x && a.y === b.y; }
 
     function occupied(pos) {
-      return snake.some(s => samePos(s, pos)) || obstacles.some(o => samePos(o, pos));
+      return snake.some(s => samePos(s, pos))
+          || obstacles.some(o => samePos(o, pos))
+          || fireCells.some(c => samePos(c, pos));
     }
 
     function placeApple() {
@@ -177,11 +219,53 @@
       snake = [{ x: 8, y: 10 }, { x: 7, y: 10 }, { x: 6, y: 10 }];
       dir = { x: 1, y: 0 };
       nextDir = { x: 1, y: 0 };
-      obstacles = OBSTACLES.map(o => ({ ...o }));
       score = 0;
+      moveTicks = 0;
       tickInterval = 150;                  // מהירות התחלתית (מ"ש לצעד)
+      levelBannerUntil = 0;
+      applyLevel(1);
       scoreEl.textContent = score;
       placeApple();
+    }
+
+    // החלת שלב: נושא צבעים, מכשולים ומנגנון (מחזורי מעבר לשלב 4)
+    function applyLevel(n) {
+      level = n;
+      const cfg = LEVELS[(n - 1) % LEVELS.length];
+      theme = cfg.theme;
+      fleeing = !!cfg.fleeing;
+      fireCells = cfg.fire ? cfg.fire.map(c => ({ ...c })) : [];
+      levelEl.textContent = level;
+      // פריסת עצים חדשה — בלי לפגוע במיקום הנחש או בתא שמיד לפניו
+      const nextHead = { x: (snake[0].x + dir.x + COLS) % COLS, y: (snake[0].y + dir.y + ROWS) % ROWS };
+      obstacles = cfg.obstacles
+        .filter(o => !snake.some(s => samePos(s, o)) && !samePos(o, nextHead))
+        .map(o => ({ ...o }));
+    }
+
+    function advanceLevel() {
+      applyLevel(level + 1);
+      levelBannerUntil = performance.now() + 1700;
+      tickInterval = Math.max(60, tickInterval - 6);   // כל שלב קצת יותר מהיר
+    }
+
+    // שלב הגשם: הפרי בורח תא אחד הרחק מראש הנחש
+    function fleeApple() {
+      const head = snake[0];
+      const ax = apple.x - head.x, ay = apple.y - head.y;
+      let fx = 0, fy = 0;
+      if (Math.abs(ax) >= Math.abs(ay)) fx = ax >= 0 ? 1 : -1;
+      else fy = ay >= 0 ? 1 : -1;
+      const target = { x: (apple.x + fx + COLS) % COLS, y: (apple.y + fy + ROWS) % ROWS };
+      if (!occupied(target)) apple = target;
+    }
+
+    // מחזור האש: בטוח → אזהרה → בוער → חוזר חלילה
+    function firePhase(now) {
+      const t = now % 6000;
+      if (t < 3000) return "safe";
+      if (t < 4000) return "warn";
+      return "burn";
     }
 
     function startGame() {
@@ -214,19 +298,31 @@
       if (snake.some(s => samePos(s, head)) || obstacles.some(o => samePos(o, head))) {
         return gameOver();
       }
+      // מגע באש בוערת = מוות
+      if (fireCells.length && firePhase(performance.now()) === "burn"
+          && fireCells.some(c => samePos(c, head))) {
+        return gameOver();
+      }
 
       snake.unshift(head);
+      moveTicks++;
 
+      let ate = false;
       if (samePos(head, apple)) {
+        ate = true;
         score += 10;
         scoreEl.textContent = score;
         // האצה הדרגתית עם רצפת מהירות
         tickInterval = Math.max(60, tickInterval - 5);
         tongueUntil = performance.now() + 1400;  // אחרי אכילה הלשון בחוץ ליותר זמן
+        if (score >= level * 50) advanceLevel();  // 50/100/150/200...
         placeApple();
       } else {
         snake.pop();
       }
+
+      // פרי בורח (רק בשלב הגשם), לאט — כל 4 צעדים
+      if (fleeing && !ate && moveTicks % 4 === 0) fleeApple();
     }
 
     function cellCenter(pos) {
@@ -238,7 +334,7 @@
       ctx.save();
       ctx.translate(l.x, l.y);
       ctx.rotate(l.angle);
-      ctx.fillStyle = l.color;
+      ctx.fillStyle = `rgba(${l.accent ? theme.accentLeaf : theme.leaf}, ${l.a})`;
       ctx.beginPath();
       ctx.moveTo(0, -l.size);
       ctx.quadraticCurveTo(l.size * 0.7, 0, 0, l.size);
@@ -253,33 +349,33 @@
       ctx.restore();
     }
 
-    // פרח מצויר — עלי כותרת סביב מרכז
-    function drawFlower(fl) {
-      ctx.fillStyle = fl.petal;
+    // פרח מצויר — עלי כותרת סביב מרכז (הצבע מפלטת הנושא)
+    function drawFlower(fl, idx) {
+      ctx.fillStyle = theme.flowers[idx % theme.flowers.length];
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * Math.PI * 2;
         ctx.beginPath();
         ctx.arc(fl.x + Math.cos(a) * fl.r, fl.y + Math.sin(a) * fl.r, fl.r * 0.7, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = fl.center;
+      ctx.fillStyle = "#fde047";
       ctx.beginPath();
       ctx.arc(fl.x, fl.y, fl.r * 0.72, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // רקע ג'ונגל מצויר — גרדיאנט ירוק, זוהר שמיים כחול למעלה, עלים ופרחים
+    // רקע ג'ונגל מצויר — גרדיאנט לפי הנושא, זוהר שמיים למעלה, עלים ופרחים
     function drawJungleBackground() {
       const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      g.addColorStop(0, "#1b7a3d");
-      g.addColorStop(1, "#083d1e");
+      g.addColorStop(0, theme.bgTop);
+      g.addColorStop(1, theme.bgBottom);
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // אור שמיים כחול עדין שמבצבץ מבין הצמרות
+      // זוהר אור עדין שמבצבץ מבין הצמרות (בגוון הנושא)
       const sky = ctx.createRadialGradient(canvas.width / 2, -40, 20, canvas.width / 2, -40, 280);
-      sky.addColorStop(0, "rgba(125,211,252,0.35)");
-      sky.addColorStop(1, "rgba(125,211,252,0)");
+      sky.addColorStop(0, `rgba(${theme.glow},${theme.glowA})`);
+      sky.addColorStop(1, `rgba(${theme.glow},0)`);
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -292,9 +388,9 @@
       const x = o.x * CELL, y = o.y * CELL;
       // גזע — גרדיאנט חום עם קליפה
       const g = ctx.createLinearGradient(x, 0, x + CELL, 0);
-      g.addColorStop(0, "#4a2c14");
-      g.addColorStop(0.5, "#8a5a2b");
-      g.addColorStop(1, "#4a2c14");
+      g.addColorStop(0, theme.trunkDark);
+      g.addColorStop(0.5, theme.trunkMid);
+      g.addColorStop(1, theme.trunkDark);
       ctx.fillStyle = g;
       ctx.fillRect(x + 3, y, CELL - 6, CELL);
       // קווי קליפה אנכיים
@@ -310,13 +406,13 @@
       const hasAbove = obstacles.some(t => t.x === o.x && t.y === o.y - 1);
       if (!hasAbove) {
         const cx = x + CELL / 2, cy = y - CELL * 0.15;
-        ctx.fillStyle = "#166534";
+        ctx.fillStyle = theme.canopyDark;
         for (const [ox, oy, r] of [[-10, 3, 12], [10, 3, 12], [0, -9, 14], [0, 5, 13]]) {
           ctx.beginPath();
           ctx.arc(cx + ox, cy + oy, r, 0, Math.PI * 2);
           ctx.fill();
         }
-        ctx.fillStyle = "#22c55e";
+        ctx.fillStyle = theme.canopyLight;
         for (const [ox, oy, r] of [[-6, -2, 6], [6, -2, 6], [0, -5, 7]]) {
           ctx.beginPath();
           ctx.arc(cx + ox, cy + oy, r, 0, Math.PI * 2);
@@ -325,11 +421,11 @@
       }
     }
 
-    // הכדור = פרי ג'ונגל אדום עם עלה קטן
+    // הכדור = פרי ג'ונגל (הצבע מגיע מנושא השלב) עם עלה קטן
     function drawFruit(pos) {
       const c = cellCenter(pos);
       const r = CELL * 0.36;
-      ctx.fillStyle = "#ef4444";
+      ctx.fillStyle = theme.fruit;
       ctx.beginPath();
       ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
       ctx.fill();
@@ -337,7 +433,7 @@
       ctx.beginPath();
       ctx.arc(c.x - r * 0.3, c.y - r * 0.35, r * 0.25, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#22c55e";
+      ctx.fillStyle = theme.fruitLeaf;
       ctx.beginPath();
       ctx.ellipse(c.x + r * 0.35, c.y - r * 0.9, r * 0.45, r * 0.22, -0.7, 0, Math.PI * 2);
       ctx.fill();
@@ -454,11 +550,70 @@
       }
     }
 
+    // אזור אש לסירוגין: קרקע חרוכה תמיד, הבהוב אזהרה, ולהבות בזמן בעירה
+    function drawFireCells(now) {
+      if (!fireCells.length) return;
+      const phase = firePhase(now);
+      for (const cell of fireCells) {
+        const x = cell.x * CELL, y = cell.y * CELL;
+        ctx.fillStyle = "#1c1917";
+        ctx.beginPath();
+        ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, 4);
+        ctx.fill();
+
+        if (phase === "warn") {
+          const a = 0.25 + 0.35 * Math.abs(Math.sin(now / 90));
+          ctx.fillStyle = `rgba(249,115,22,${a})`;
+          ctx.beginPath();
+          ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, 4);
+          ctx.fill();
+        } else if (phase === "burn") {
+          const cx = x + CELL / 2;
+          const flick = Math.abs(Math.sin((now + cell.x * 120 + cell.y * 90) / 70));
+          const h = CELL * (0.7 + 0.25 * flick);
+          const grd = ctx.createLinearGradient(0, y + CELL, 0, y + CELL - h);
+          grd.addColorStop(0, "#f59e0b");
+          grd.addColorStop(0.5, "#ef4444");
+          grd.addColorStop(1, "rgba(250,204,21,0.9)");
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.moveTo(x + 3, y + CELL);
+          ctx.quadraticCurveTo(x + 2, y + CELL - h * 0.6, cx, y + CELL - h);
+          ctx.quadraticCurveTo(x + CELL - 2, y + CELL - h * 0.6, x + CELL - 3, y + CELL);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = "rgba(254,240,138,0.9)";
+          ctx.beginPath();
+          ctx.ellipse(cx, y + CELL - h * 0.35, CELL * 0.14, h * 0.25, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // באנר "שלב N" קצר עם שם הנושא
+    function drawLevelBanner() {
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.fillRect(0, canvas.height / 2 - 40, canvas.width, 80);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#fde047";
+      ctx.font = "bold 32px system-ui, sans-serif";
+      ctx.fillText("שלב " + level + " 🌟", canvas.width / 2, canvas.height / 2 - 10);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "600 18px system-ui, sans-serif";
+      ctx.fillText(LEVELS[(level - 1) % LEVELS.length].name, canvas.width / 2, canvas.height / 2 + 20);
+      ctx.restore();
+    }
+
     function draw() {
+      const now = performance.now();
       drawJungleBackground();
+      drawFireCells(now);
       obstacles.forEach(drawTrunk);
       drawFruit(apple);
       drawSnake();
+      if (now < levelBannerUntil) drawLevelBanner();
     }
 
     function loop(timestamp) {
