@@ -1,307 +1,512 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Snake 🐍</title>
   <style>
-    :root {
-      --bg1: #052e16;
-      --bg2: #14532d;
-      --accent: #a3e635;
-    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       min-height: 100vh;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 16px;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      background: radial-gradient(circle at top, var(--bg2), var(--bg1));
+      background: radial-gradient(circle at top, #14532d, #052e16);
       color: #e2e8f0;
-      padding: 16px;
+      padding: 12px;
     }
-    h1 {
-      font-size: 2rem;
-      background: linear-gradient(90deg, #bef264, #22c55e, #fbbf24);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+    .wrap { width: min(600px, 94vw); display: flex; flex-direction: column; gap: 10px; }
+
+    /* ---- HUD ---- */
+    .hud {
+      display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap;
+      font-size: 0.95rem; font-weight: 600;
     }
-    .scoreboard {
-      display: flex;
-      gap: 24px;
-      font-size: 1.1rem;
-      font-weight: 600;
+    .hud .pill { background: rgba(0,0,0,0.25); padding: 6px 12px; border-radius: 999px; }
+    .hud b { color: #a3e635; }
+    .hud .stage-name { color: #fbbf24; }
+    .hud .spacer { flex: 1; }
+    .hud button {
+      width: 38px; height: 38px; border-radius: 10px; border: none; cursor: pointer;
+      background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 1.1rem;
     }
-    .scoreboard span { color: var(--accent); }
+    .hud button:hover { background: rgba(0,0,0,0.5); }
+    .progress { height: 8px; border-radius: 999px; background: rgba(0,0,0,0.3); overflow: hidden; }
+    .progress > div { height: 100%; width: 0%; border-radius: 999px;
+      background: linear-gradient(90deg, #bef264, #22c55e); transition: width 0.25s ease; }
+
+    /* ---- Stage / canvas ---- */
     .stage {
-      position: relative;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      position: relative; width: 100%; aspect-ratio: 1 / 1;
+      border-radius: 14px; overflow: hidden; box-shadow: 0 12px 45px rgba(0,0,0,0.55);
     }
-    canvas {
-      display: block;
-      background: #0a2618;
-    }
+    canvas { display: block; width: 100%; height: 100%; background: #0a2618; }
+
+    /* ---- Overlays ---- */
     .overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      text-align: center;
-      background: rgba(5, 30, 15, 0.86);
-      backdrop-filter: blur(3px);
-      padding: 20px;
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px; text-align: center;
+      padding: 22px; background: rgba(5, 25, 14, 0.9); backdrop-filter: blur(4px);
     }
     .overlay.hidden { display: none; }
-    .overlay h2 { font-size: 1.8rem; }
-    .overlay p { color: #94a3b8; }
+    .overlay h1 {
+      font-size: 2.4rem; letter-spacing: 1px;
+      background: linear-gradient(90deg, #bef264, #22c55e, #fbbf24);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .overlay h2 { font-size: 1.9rem; letter-spacing: 1px; }
+    .overlay p { color: #cbd5e1; max-width: 30ch; line-height: 1.5; font-size: 0.95rem; }
+    .muted-txt { color: #94a3b8; font-size: 0.82rem; }
+
     .btn {
-      margin-top: 8px;
-      padding: 12px 28px;
-      font-size: 1rem;
-      font-weight: 700;
-      color: #052e16;
-      background: linear-gradient(90deg, #bef264, #22c55e);
-      border: none;
-      border-radius: 999px;
-      cursor: pointer;
-      transition: transform 0.1s ease;
+      padding: 12px 30px; font-size: 1rem; font-weight: 800; letter-spacing: 0.5px;
+      color: #052e16; background: linear-gradient(90deg, #bef264, #22c55e);
+      border: none; border-radius: 999px; cursor: pointer; transition: transform 0.1s ease;
     }
     .btn:hover { transform: scale(1.05); }
-    .hint { font-size: 0.85rem; color: #64748b; }
+    .btn.secondary { background: rgba(255,255,255,0.12); color: #e2e8f0; }
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+    /* keys visualization */
+    .keys { display: flex; gap: 26px; align-items: center; justify-content: center; margin: 4px 0; }
+    .keygrid { display: grid; grid-template-columns: repeat(3, 34px); grid-auto-rows: 34px; gap: 5px; justify-content: center; }
+    .keycap {
+      display: flex; align-items: center; justify-content: center; height: 34px;
+      border-radius: 8px; background: #1e293b; border: 1px solid #334155;
+      font-weight: 700; font-size: 0.85rem; color: #e2e8f0; box-shadow: 0 2px 0 #0f172a;
+    }
+    .keycap.empty { background: transparent; border: none; box-shadow: none; }
+
+    /* countdown */
+    #countdownOverlay { background: rgba(5,25,14,0.55); }
+    .count-num { font-size: 6rem; font-weight: 900; color: #fde047; text-shadow: 0 4px 20px rgba(0,0,0,0.6); }
+
+    /* transition */
+    .trans-stage { font-size: 1.6rem; font-weight: 800; color: #fde047; }
+
+    /* game over cause */
+    .cause-box { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 4px 0; }
+    .cause-icon { font-size: 3rem; line-height: 1; }
+    .cause-label { font-size: 0.8rem; letter-spacing: 1px; color: #94a3b8; }
+    .cause-text { font-size: 1.05rem; font-weight: 700; }
+    .stat-row { display: flex; gap: 22px; justify-content: center; }
+    .stat { display: flex; flex-direction: column; }
+    .stat b { font-size: 1.5rem; color: #a3e635; }
+    .stat span { font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.5px; }
+
+    /* settings */
+    .setting { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      width: 100%; max-width: 320px; }
+    .setting label { font-size: 0.9rem; }
+    .setting select {
+      padding: 8px 12px; border-radius: 10px; border: 1px solid #334155;
+      background: #1e293b; color: #e2e8f0; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h1>Snake 🐍</h1>
-  <div class="scoreboard">
-    <div>שלב: <span id="level">1</span></div>
-    <div>ניקוד: <span id="score">0</span></div>
-    <div>שיא: <span id="high">0</span></div>
-  </div>
-
-  <div class="stage">
-    <canvas id="board" width="480" height="480"></canvas>
-
-    <div class="overlay" id="startScreen">
-      <h2>Snake 🐍</h2>
-      <p>אכלו פירות, גדלו ועברו שלבים! עברו דרך הקירות, אך היזהרו מהעצים.</p>
-      <button class="btn" id="startBtn">התחל משחק</button>
-      <p class="hint">שליטה: מקשי חצים או W A S D</p>
+  <div class="wrap">
+    <div class="hud">
+      <span class="pill">Score <b id="score">0</b></span>
+      <span class="pill">Best <b id="high">0</b></span>
+      <span class="pill stage-name" id="stageInfo">Stage 1 — Green Forest</span>
+      <span class="pill" id="toNext">50 to next</span>
+      <span class="spacer"></span>
+      <button id="pauseBtn" title="Pause (P)">⏸</button>
+      <button id="muteBtn" title="Mute">🔊</button>
     </div>
+    <div class="progress"><div id="progressFill"></div></div>
 
-    <div class="overlay hidden" id="gameOverScreen">
-      <h2>Game Over</h2>
-      <p>הניקוד שלך: <span id="finalScore">0</span></p>
-      <button class="btn" id="restartBtn">שחק שוב</button>
-      <p class="hint">Enter או רווח כדי לשחק שוב</p>
+    <div class="stage">
+      <canvas id="board" width="600" height="600"></canvas>
+
+      <!-- HOME -->
+      <div class="overlay" id="homeScreen">
+        <h1>Snake 🐍</h1>
+        <p>Eat fruit, grow longer, and climb through 4 jungle stages. Each stage brings something new!</p>
+        <div class="keys">
+          <div class="keygrid">
+            <div class="keycap empty"></div><div class="keycap">↑</div><div class="keycap empty"></div>
+            <div class="keycap">←</div><div class="keycap">↓</div><div class="keycap">→</div>
+          </div>
+          <div class="keygrid">
+            <div class="keycap empty"></div><div class="keycap">W</div><div class="keycap empty"></div>
+            <div class="keycap">A</div><div class="keycap">S</div><div class="keycap">D</div>
+          </div>
+        </div>
+        <p class="muted-txt">You pass <b>through</b> the walls — but you die if you hit yourself, a tree, or fire.</p>
+        <div class="btn-row">
+          <button class="btn" id="playBtn">PLAY</button>
+          <button class="btn secondary" id="homeSettingsBtn">SETTINGS</button>
+        </div>
+      </div>
+
+      <!-- READY -->
+      <div class="overlay hidden" id="readyOverlay" style="background: rgba(5,25,14,0.55);">
+        <h2>Get ready!</h2>
+        <p>Press any <b>arrow key</b> or <b>WASD</b> when you're ready</p>
+      </div>
+
+      <!-- COUNTDOWN -->
+      <div class="overlay hidden" id="countdownOverlay">
+        <div class="count-num" id="countNum">3</div>
+      </div>
+
+      <!-- STAGE TRANSITION -->
+      <div class="overlay hidden" id="transitionOverlay">
+        <div class="trans-stage" id="transStage">Stage 2 — Sunset Jungle</div>
+        <p id="transBlurb">Something new awaits…</p>
+      </div>
+
+      <!-- PAUSE -->
+      <div class="overlay hidden" id="pauseScreen">
+        <h2>Paused</h2>
+        <div class="btn-row">
+          <button class="btn" id="resumeBtn">RESUME</button>
+          <button class="btn secondary" id="pauseRestartBtn">RESTART</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn secondary" id="pauseSettingsBtn">SETTINGS</button>
+          <button class="btn secondary" id="pauseHomeBtn">BACK TO HOME</button>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="overlay hidden" id="settingsScreen">
+        <h2>Settings</h2>
+        <div class="setting">
+          <label for="setStart">Starting speed</label>
+          <select id="setStart">
+            <option value="Slow">Slow</option>
+            <option value="Normal">Normal</option>
+            <option value="Fast">Fast</option>
+          </select>
+        </div>
+        <div class="setting">
+          <label for="setAccel">Acceleration</label>
+          <select id="setAccel">
+            <option value="Low">Low</option>
+            <option value="Normal">Normal</option>
+            <option value="High">High</option>
+          </select>
+        </div>
+        <div class="setting">
+          <label for="setFlee">Fruit speed (Stage 3)</label>
+          <select id="setFlee">
+            <option value="Slow">Slow</option>
+            <option value="Normal">Normal</option>
+            <option value="Fast">Fast</option>
+          </select>
+        </div>
+        <p class="muted-txt">Starting speed applies to your next game.</p>
+        <button class="btn" id="settingsBackBtn">BACK</button>
+      </div>
+
+      <!-- GAME OVER -->
+      <div class="overlay hidden" id="gameOverScreen">
+        <h2>GAME OVER</h2>
+        <div class="stat-row">
+          <div class="stat"><b id="finalScore">0</b><span>SCORE</span></div>
+          <div class="stat"><b id="finalBest">0</b><span>BEST</span></div>
+          <div class="stat"><b id="finalStage">1</b><span>STAGE</span></div>
+        </div>
+        <div class="cause-box">
+          <div class="cause-label">CAUSE OF DEATH</div>
+          <div class="cause-icon" id="causeIcon">🌳</div>
+          <div class="cause-text" id="causeText">A tree</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="goRestartBtn">RESTART</button>
+          <button class="btn secondary" id="goHomeBtn">BACK TO HOME</button>
+        </div>
+      </div>
     </div>
   </div>
 
   <script>
+    "use strict";
     const canvas = document.getElementById("board");
     const ctx = canvas.getContext("2d");
 
-    const CELL = 24;                       // גודל תא בפיקסלים
-    const COLS = canvas.width / CELL;       // מספר עמודות
-    const ROWS = canvas.height / CELL;      // מספר שורות
+    const COLS = 20, ROWS = 20;
+    const CELL = canvas.width / COLS;      // 30px
 
-    const scoreEl = document.getElementById("score");
-    const levelEl = document.getElementById("level");
-    const highEl = document.getElementById("high");
-    const finalScoreEl = document.getElementById("finalScore");
-    const startScreen = document.getElementById("startScreen");
-    const gameOverScreen = document.getElementById("gameOverScreen");
+    // ---- element refs ----
+    const $ = id => document.getElementById(id);
+    const scoreEl = $("score"), highEl = $("high"), stageInfoEl = $("stageInfo"),
+          toNextEl = $("toNext"), progressFill = $("progressFill");
+    const overlays = ["homeScreen","readyOverlay","countdownOverlay","transitionOverlay",
+                      "pauseScreen","settingsScreen","gameOverScreen"].map($);
+    const homeScreen=$("homeScreen"), readyOverlay=$("readyOverlay"), countdownOverlay=$("countdownOverlay"),
+          transitionOverlay=$("transitionOverlay"), pauseScreen=$("pauseScreen"),
+          settingsScreen=$("settingsScreen"), gameOverScreen=$("gameOverScreen");
+    const countNum=$("countNum"), transStage=$("transStage"), transBlurb=$("transBlurb");
 
-    let snake, dir, nextDir, apple, obstacles, score, highScore, tickInterval;
-    let state = "MENU";                    // MENU | PLAYING | GAME_OVER
-    let lastTick = 0;
-    let tongueUntil = 0;                    // עד מתי הלשון בחוץ (אחרי אכילה)
-    let level = 1;                          // שלב נוכחי
-    let fireCells = [];                     // תאי אש (רק בשלב הוולקני)
-    let fleeing = false;                    // האם הפרי בורח (שלב הגשם)
-    let moveTicks = 0;                      // מונה צעדים (לפרי הבורח)
-    let levelBannerUntil = 0;              // עד מתי מוצג באנר השלב
-
-    highScore = Number(localStorage.getItem("snakeHighScore")) || 0;
-    highEl.textContent = highScore;
-
-    // ===== שלבים: לכל שלב נושא ג'ונגל, מכשולים ומנגנון משלו =====
+    // ================= LEVELS =================
     const LEVELS = [
-      { // שלב 1 — יער ירוק קלאסי
-        name: "יער ירוק",
-        theme: { bgTop: "#1b7a3d", bgBottom: "#083d1e", glow: "125,211,252", glowA: 0.35,
-                 leaf: "20,83,45", accentLeaf: "22,101,52",
-                 trunkDark: "#4a2c14", trunkMid: "#8a5a2b", canopyDark: "#166534", canopyLight: "#22c55e",
-                 flowers: ["#c084fc", "#f0abfc", "#7dd3fc", "#a78bfa", "#818cf8", "#f9a8d4"],
-                 fruit: "#ef4444", fruitLeaf: "#22c55e" },
-        obstacles: [ {x:5,y:4},{x:5,y:5},{x:5,y:6}, {x:15,y:10},{x:15,y:11},{x:15,y:12}, {x:9,y:14},{x:9,y:15},{x:9,y:16} ],
-      },
-      { // שלב 2 — ג'ונגל שקיעה, מבוך עצים
-        name: "ג'ונגל שקיעה",
-        theme: { bgTop: "#b45309", bgBottom: "#3b1a06", glow: "251,191,36", glowA: 0.4,
-                 leaf: "63,98,18", accentLeaf: "101,116,20",
-                 trunkDark: "#3f2412", trunkMid: "#7c4a21", canopyDark: "#4d7c0f", canopyLight: "#84cc16",
-                 flowers: ["#fb923c", "#fbbf24", "#f87171", "#fca5a5", "#fdba74", "#f472b6"],
-                 fruit: "#38bdf8", fruitLeaf: "#22c55e" },
-        obstacles: [ {x:4,y:3},{x:4,y:4},{x:4,y:5}, {x:16,y:4},{x:16,y:5},{x:16,y:6}, {x:6,y:14},{x:6,y:15},{x:6,y:16}, {x:14,y:13},{x:14,y:14},{x:14,y:15}, {x:10,y:8},{x:10,y:9} ],
-      },
-      { // שלב 3 — ג'ונגל גשם, פרי בורח
-        name: "ג'ונגל גשם",
-        theme: { bgTop: "#0f766e", bgBottom: "#042f2e", glow: "94,234,212", glowA: 0.38,
-                 leaf: "6,78,59", accentLeaf: "13,148,136",
-                 trunkDark: "#3f2412", trunkMid: "#6b4423", canopyDark: "#065f46", canopyLight: "#14b8a6",
-                 flowers: ["#5eead4", "#7dd3fc", "#a5f3fc", "#67e8f9", "#99f6e4", "#38bdf8"],
-                 fruit: "#fb7185", fruitLeaf: "#4ade80" },
-        obstacles: [ {x:3,y:6},{x:3,y:7},{x:3,y:8}, {x:17,y:6},{x:17,y:7},{x:17,y:8}, {x:10,y:3},{x:10,y:4}, {x:6,y:16},{x:6,y:17}, {x:14,y:16},{x:14,y:17} ],
-        fleeing: true,
-      },
-      { // שלב 4 — ג'ונגל לילה וולקני, אש לסירוגין
-        name: "ג'ונגל וולקני",
-        theme: { bgTop: "#4c1d95", bgBottom: "#1e1b4b", glow: "239,68,68", glowA: 0.3,
-                 leaf: "49,46,129", accentLeaf: "76,29,149",
-                 trunkDark: "#292524", trunkMid: "#57534e", canopyDark: "#3730a3", canopyLight: "#7c3aed",
-                 flowers: ["#f472b6", "#c084fc", "#f0abfc", "#818cf8", "#fb7185", "#e879f9"],
-                 fruit: "#fde047", fruitLeaf: "#a3e635" },
-        obstacles: [ {x:4,y:4},{x:4,y:5}, {x:16,y:14},{x:16,y:15}, {x:10,y:2},{x:10,y:3} ],
-        fire: [ {x:8,y:10},{x:9,y:10},{x:10,y:10},{x:11,y:10}, {x:8,y:11},{x:9,y:11},{x:10,y:11},{x:11,y:11} ],
-      },
+      { name: "Green Forest", blurb: "Fresh forest — open space to warm up.",
+        theme: { bgTop:"#1b7a3d", bgBottom:"#083d1e", glow:"125,211,252", glowA:0.35,
+                 leaf:"20,83,45", accentLeaf:"22,101,52",
+                 trunkDark:"#4a2c14", trunkMid:"#8a5a2b", canopyDark:"#166534", canopyLight:"#22c55e",
+                 flowers:["#c084fc","#f0abfc","#7dd3fc","#a78bfa","#818cf8","#f9a8d4"],
+                 fruit:"#ef4444", fruitLeaf:"#22c55e" },
+        obstacles: [ {x:4,y:4},{x:4,y:5}, {x:15,y:15},{x:15,y:16} ] },
+      { name: "Sunset Jungle", blurb: "More trees now — mind the gaps.",
+        theme: { bgTop:"#b45309", bgBottom:"#3b1a06", glow:"251,191,36", glowA:0.4,
+                 leaf:"63,98,18", accentLeaf:"101,116,20",
+                 trunkDark:"#3f2412", trunkMid:"#7c4a21", canopyDark:"#4d7c0f", canopyLight:"#84cc16",
+                 flowers:["#fb923c","#fbbf24","#f87171","#fca5a5","#fdba74","#f472b6"],
+                 fruit:"#38bdf8", fruitLeaf:"#22c55e" },
+        obstacles: [ {x:4,y:3},{x:4,y:4}, {x:16,y:4},{x:16,y:5}, {x:6,y:15},{x:6,y:16},
+                     {x:14,y:14},{x:14,y:15}, {x:10,y:8} ] },
+      { name: "Rain Jungle", blurb: "The fruit now creeps slowly away from you.",
+        theme: { bgTop:"#0f766e", bgBottom:"#042f2e", glow:"94,234,212", glowA:0.38,
+                 leaf:"6,78,59", accentLeaf:"13,148,136",
+                 trunkDark:"#3f2412", trunkMid:"#6b4423", canopyDark:"#065f46", canopyLight:"#14b8a6",
+                 flowers:["#5eead4","#7dd3fc","#a5f3fc","#67e8f9","#99f6e4","#38bdf8"],
+                 fruit:"#fb7185", fruitLeaf:"#4ade80" },
+        obstacles: [ {x:3,y:6},{x:3,y:7}, {x:17,y:6},{x:17,y:7}, {x:10,y:3}, {x:6,y:16}, {x:14,y:16} ],
+        fleeing: true },
+      { name: "Volcanic Jungle", blurb: "Cross the fire only while it is OUT!",
+        theme: { bgTop:"#4c1d95", bgBottom:"#1e1b4b", glow:"239,68,68", glowA:0.3,
+                 leaf:"49,46,129", accentLeaf:"76,29,149",
+                 trunkDark:"#292524", trunkMid:"#57534e", canopyDark:"#3730a3", canopyLight:"#7c3aed",
+                 flowers:["#f472b6","#c084fc","#f0abfc","#818cf8","#fb7185","#e879f9"],
+                 fruit:"#fde047", fruitLeaf:"#a3e635" },
+        obstacles: [ {x:2,y:2}, {x:17,y:17} ], fire: [] },
     ];
+    // fire passage across the middle (stage 4)
+    for (let x = 3; x <= 16; x++) LEVELS[3].fire.push({ x, y: 9 }, { x, y: 10 });
 
-    let theme = LEVELS[0].theme;           // נושא הצבעים של השלב הנוכחי
-
-    // עלים מצוירים לרקע (מיקומים קבועים; הצבע מגיע מנושא השלב)
+    // ================= LEAVES & FLOWERS (decor) =================
     const LEAVES = [
-      { x: 28,  y: 42,  size: 46, angle: -0.6, a: 0.55, accent: true },
-      { x: 72,  y: 20,  size: 32, angle: 0.4,  a: 0.45 },
-      { x: 452, y: 36,  size: 48, angle: 0.7,  a: 0.55, accent: true },
-      { x: 414, y: 16,  size: 30, angle: -0.3, a: 0.4 },
-      { x: 24,  y: 446, size: 50, angle: 0.5,  a: 0.6 },
-      { x: 66,  y: 466, size: 34, angle: -0.5, a: 0.5, accent: true },
-      { x: 456, y: 448, size: 52, angle: -0.6, a: 0.6 },
-      { x: 418, y: 470, size: 34, angle: 0.5,  a: 0.5, accent: true },
-      { x: 240, y: 10,  size: 28, angle: 0.1,  a: 0.32 },
-      { x: 240, y: 472, size: 40, angle: 3.2,  a: 0.5 },
-      { x: 95,  y: 55,  size: 30, angle: 0.9,  a: 0.35, accent: true },
-      { x: 400, y: 445, size: 34, angle: -0.9, a: 0.35, accent: true },
+      { x:35,  y:52,  size:58, angle:-0.6, a:0.55, accent:true },
+      { x:90,  y:25,  size:40, angle:0.4,  a:0.45 },
+      { x:565, y:45,  size:60, angle:0.7,  a:0.55, accent:true },
+      { x:518, y:20,  size:38, angle:-0.3, a:0.4 },
+      { x:30,  y:558, size:62, angle:0.5,  a:0.6 },
+      { x:82,  y:582, size:42, angle:-0.5, a:0.5, accent:true },
+      { x:570, y:560, size:64, angle:-0.6, a:0.6 },
+      { x:522, y:588, size:42, angle:0.5,  a:0.5, accent:true },
+      { x:300, y:14,  size:36, angle:0.1,  a:0.32 },
+      { x:300, y:590, size:50, angle:3.2,  a:0.5 },
+      { x:118, y:70,  size:38, angle:0.9,  a:0.35, accent:true },
+      { x:500, y:556, size:42, angle:-0.9, a:0.35, accent:true },
     ];
-
-    // פרחים (מיקומים קבועים; הצבע מגיע מפלטת הנושא)
     const FLOWERS = [
-      { x: 56,  y: 74,  r: 7 }, { x: 430, y: 58,  r: 7 }, { x: 42,  y: 415, r: 8 },
-      { x: 446, y: 418, r: 7 }, { x: 205, y: 28,  r: 6 }, { x: 300, y: 456, r: 7 },
+      { x:70, y:92, r:9 }, { x:538, y:72, r:9 }, { x:52, y:518, r:10 },
+      { x:558, y:522, r:9 }, { x:256, y:35, r:8 }, { x:375, y:570, r:9 },
     ];
 
-    function samePos(a, b) { return a.x === b.x && a.y === b.y; }
+    // ================= SETTINGS =================
+    const SPEED = {
+      start: { Slow:200, Normal:170, Fast:140 },   // ms per step
+      accel: { Low:2, Normal:3, High:5 },          // ms shaved per fruit
+      flee:  { Slow:10, Normal:8, Fast:6 },        // fruit moves once per N steps
+    };
+    let settings = loadSettings() || { start:"Normal", accel:"Normal", flee:"Normal" };
+    let muted = localStorage.getItem("snakeMuted") === "1";
 
+    function loadSettings() { try { return JSON.parse(localStorage.getItem("snakeSettings")); } catch (e) { return null; } }
+    function saveSettings() { localStorage.setItem("snakeSettings", JSON.stringify(settings)); }
+
+    // ================= STATE =================
+    let state = "HOME";   // HOME | READY | COUNTDOWN | TRANSITION | PLAYING | PAUSED | GAMEOVER
+    let snake, dir, nextDir, apple, obstacles = [], score = 0, tickInterval;
+    let level = 1, theme = LEVELS[0].theme, fleeing = false, fireCells = [];
+    let moveTicks = 0, deathCause = null;
+    let highScore = Number(localStorage.getItem("snakeHighScore")) || 0;
+
+    // clocks: animTime only advances while PLAYING (so pause/transitions freeze everything)
+    let animTime = 0, lastTs = 0, stepAccum = 0;
+    let tongueUntil = 0, fireEpoch = 0, prevFirePhase = "safe";
+    let eatFlashes = [];
+    const FIRE_CYCLE = 6500;   // safe 3200 / warn 1500 / burn 1800
+
+    // ================= AUDIO (WebAudio, no files) =================
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+      if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    }
+    function beep(freq, dur, type, vol, when) {
+      if (muted || !audioCtx) return;
+      const t = audioCtx.currentTime + (when || 0);
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = type; o.frequency.value = freq;
+      o.connect(g); g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.start(t); o.stop(t + dur);
+    }
+    function playSound(name) {
+      if (name === "eat") beep(660, 0.12, "triangle", 0.09, 0);
+      else if (name === "levelup") { beep(523,0.12,"sine",0.08,0); beep(659,0.12,"sine",0.08,0.12); beep(784,0.16,"sine",0.08,0.24); }
+      else if (name === "warn") beep(200, 0.2, "square", 0.05, 0);
+      else if (name === "tick") beep(880, 0.07, "sine", 0.05, 0);
+      else if (name === "gameover") { beep(440,0.2,"sawtooth",0.07,0); beep(330,0.2,"sawtooth",0.07,0.18); beep(220,0.32,"sawtooth",0.07,0.36); }
+    }
+
+    // ================= HELPERS =================
+    const samePos = (a, b) => a.x === b.x && a.y === b.y;
+    const rand = n => Math.floor(Math.random() * n);
     function occupied(pos) {
       return snake.some(s => samePos(s, pos))
           || obstacles.some(o => samePos(o, pos))
           || fireCells.some(c => samePos(c, pos));
     }
-
     function placeApple() {
-      let pos;
+      const biasFar = fireCells.length > 0;   // stage 4: push fruit across the fire
+      let pos, tries = 0;
       do {
-        pos = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
-      } while (occupied(pos));
+        pos = { x: rand(COLS), y: rand(ROWS) };
+        tries++;
+      } while ((occupied(pos) || (biasFar && (pos.y < 10) === (snake[0].y < 10))) && tries < 300);
+      while (occupied(pos)) pos = { x: rand(COLS), y: rand(ROWS) };  // safety fallback
       apple = pos;
     }
 
-    function resetGame() {
-      snake = [{ x: 8, y: 10 }, { x: 7, y: 10 }, { x: 6, y: 10 }];
-      dir = { x: 1, y: 0 };
-      nextDir = { x: 1, y: 0 };
-      score = 0;
-      moveTicks = 0;
-      tickInterval = 150;                  // מהירות התחלתית (מ"ש לצעד)
-      levelBannerUntil = 0;
-      applyLevel(1);
-      scoreEl.textContent = score;
-      placeApple();
+    function firePhase(t) {
+      const c = ((t - fireEpoch) % FIRE_CYCLE + FIRE_CYCLE) % FIRE_CYCLE;
+      if (c < 3200) return "safe";
+      if (c < 4700) return "warn";
+      return "burn";
     }
 
-    // החלת שלב: נושא צבעים, מכשולים ומנגנון (מחזורי מעבר לשלב 4)
+    // ================= LEVEL MANAGEMENT =================
     function applyLevel(n) {
       level = n;
       const cfg = LEVELS[(n - 1) % LEVELS.length];
       theme = cfg.theme;
       fleeing = !!cfg.fleeing;
       fireCells = cfg.fire ? cfg.fire.map(c => ({ ...c })) : [];
-      levelEl.textContent = level;
-      // פריסת עצים חדשה — בלי לפגוע במיקום הנחש או בתא שמיד לפניו
-      const nextHead = { x: (snake[0].x + dir.x + COLS) % COLS, y: (snake[0].y + dir.y + ROWS) % ROWS };
-      obstacles = cfg.obstacles
-        .filter(o => !snake.some(s => samePos(s, o)) && !samePos(o, nextHead))
-        .map(o => ({ ...o }));
+      fireEpoch = animTime;              // fire always starts in the SAFE phase
+      prevFirePhase = "safe";
+      // build obstacles with a safe zone around the snake (body, ring, and cells ahead)
+      const forbidden = new Set();
+      const add = (x, y) => forbidden.add(((x % COLS + COLS) % COLS) + "," + ((y % ROWS + ROWS) % ROWS));
+      snake.forEach(s => add(s.x, s.y));
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) add(snake[0].x + dx, snake[0].y + dy);
+      let hx = snake[0].x, hy = snake[0].y;
+      for (let i = 0; i < 4; i++) { hx += dir.x; hy += dir.y; add(hx, hy); }
+      obstacles = cfg.obstacles.filter(o => !forbidden.has(o.x + "," + o.y)).map(o => ({ ...o }));
+      updateHUD();
     }
 
-    function advanceLevel() {
-      applyLevel(level + 1);
-      levelBannerUntil = performance.now() + 1700;
-      tickInterval = Math.max(60, tickInterval - 6);   // כל שלב קצת יותר מהיר
+    function updateHUD() {
+      scoreEl.textContent = score;
+      highEl.textContent = highScore;
+      const cfg = LEVELS[(level - 1) % LEVELS.length];
+      stageInfoEl.textContent = "Stage " + level + " — " + cfg.name;
+      const toNext = level * 50 - score;
+      toNextEl.textContent = toNext + " to next";
+      const pct = ((score - (level - 1) * 50) / 50) * 100;
+      progressFill.style.width = Math.max(0, Math.min(100, pct)) + "%";
     }
 
-    // שלב הגשם: הפרי בורח תא אחד הרחק מראש הנחש
+    // ================= GAME FLOW =================
+    function resetGame() {
+      snake = [{ x: 8, y: 10 }, { x: 7, y: 10 }, { x: 6, y: 10 }];
+      dir = { x: 1, y: 0 }; nextDir = { x: 1, y: 0 };
+      score = 0; moveTicks = 0; animTime = 0; stepAccum = 0;
+      tickInterval = SPEED.start[settings.start];
+      deathCause = null; eatFlashes = [];
+      applyLevel(1);
+      placeApple();
+      updateHUD();
+    }
+
+    function hideAllOverlays() { overlays.forEach(o => o.classList.add("hidden")); }
+
+    function goHome() { hideAllOverlays(); state = "HOME"; homeScreen.classList.remove("hidden"); }
+
+    function startReady() {
+      initAudio();
+      hideAllOverlays();
+      resetGame();
+      state = "READY";
+      readyOverlay.classList.remove("hidden");
+    }
+
+    function startCountdown(done) {
+      state = "COUNTDOWN";
+      hideAllOverlays();
+      countdownOverlay.classList.remove("hidden");
+      let n = 3;
+      countNum.textContent = n; playSound("tick");
+      const iv = setInterval(() => {
+        n--;
+        if (n > 0) { countNum.textContent = n; playSound("tick"); }
+        else { clearInterval(iv); countdownOverlay.classList.add("hidden"); stepAccum = 0; done(); }
+      }, 700);
+    }
+
+    function beginPlayFromReady() {
+      readyOverlay.classList.add("hidden");
+      startCountdown(() => { state = "PLAYING"; });
+    }
+
+    function startTransition() {
+      const n = level + 1;
+      const cfg = LEVELS[(n - 1) % LEVELS.length];
+      state = "TRANSITION";
+      transStage.textContent = "Stage " + n + " — " + cfg.name;
+      transBlurb.textContent = cfg.blurb;
+      hideAllOverlays();
+      transitionOverlay.classList.remove("hidden");
+      playSound("levelup");
+      setTimeout(() => {
+        applyLevel(n);
+        tickInterval = Math.max(70, tickInterval - 6);
+        placeApple();
+        transitionOverlay.classList.add("hidden");
+        startCountdown(() => { state = "PLAYING"; });
+      }, 1900);
+    }
+
+    function togglePause() {
+      if (state === "PLAYING") { state = "PAUSED"; pauseScreen.classList.remove("hidden"); }
+      else if (state === "PAUSED") resumeFromPause();
+    }
+    function resumeFromPause() {
+      pauseScreen.classList.add("hidden");
+      state = "PLAYING"; stepAccum = 0;
+    }
+
+    function gameOver() {
+      state = "GAMEOVER";
+      if (score > highScore) { highScore = score; localStorage.setItem("snakeHighScore", highScore); }
+      const CAUSE = { tree:{icon:"🌳",text:"A tree"}, self:{icon:"🐍",text:"Your own body"}, fire:{icon:"🔥",text:"Fire"} };
+      const c = CAUSE[deathCause] || CAUSE.tree;
+      $("finalScore").textContent = score;
+      $("finalBest").textContent = highScore;
+      $("finalStage").textContent = level;
+      $("causeIcon").textContent = c.icon;
+      $("causeText").textContent = c.text;
+      updateHUD();
+      playSound("gameover");
+      gameOverScreen.classList.remove("hidden");
+    }
+
+    // ================= SNAKE LOGIC =================
     function fleeApple() {
       const head = snake[0];
       const ax = apple.x - head.x, ay = apple.y - head.y;
       let fx = 0, fy = 0;
-      if (Math.abs(ax) >= Math.abs(ay)) fx = ax >= 0 ? 1 : -1;
-      else fy = ay >= 0 ? 1 : -1;
+      if (Math.abs(ax) >= Math.abs(ay)) fx = ax >= 0 ? 1 : -1; else fy = ay >= 0 ? 1 : -1;
       const target = { x: (apple.x + fx + COLS) % COLS, y: (apple.y + fy + ROWS) % ROWS };
       if (!occupied(target)) apple = target;
     }
 
-    // מחזור האש: בטוח → אזהרה → בוער → חוזר חלילה
-    function firePhase(now) {
-      const t = now % 6000;
-      if (t < 3000) return "safe";
-      if (t < 4000) return "warn";
-      return "burn";
-    }
-
-    function startGame() {
-      resetGame();
-      state = "PLAYING";
-      startScreen.classList.add("hidden");
-      gameOverScreen.classList.add("hidden");
-    }
-
-    function gameOver() {
-      state = "GAME_OVER";
-      if (score > highScore) {
-        highScore = score;
-        localStorage.setItem("snakeHighScore", highScore);
-        highEl.textContent = highScore;
-      }
-      finalScoreEl.textContent = score;
-      gameOverScreen.classList.remove("hidden");
-    }
-
     function step() {
       dir = nextDir;
-      // הנחש עובר דרך הקיר ויוצא מהצד הנגדי (wrap-around)
-      const head = {
-        x: (snake[0].x + dir.x + COLS) % COLS,
-        y: (snake[0].y + dir.y + ROWS) % ROWS,
-      };
+      const head = { x: (snake[0].x + dir.x + COLS) % COLS, y: (snake[0].y + dir.y + ROWS) % ROWS };
 
-      // התנגשות בגוף עצמו או במכשול
-      if (snake.some(s => samePos(s, head)) || obstacles.some(o => samePos(o, head))) {
-        return gameOver();
-      }
-      // מגע באש בוערת = מוות
-      if (fireCells.length && firePhase(performance.now()) === "burn"
-          && fireCells.some(c => samePos(c, head))) {
-        return gameOver();
+      if (snake.some(s => samePos(s, head))) { deathCause = "self"; return gameOver(); }
+      if (obstacles.some(o => samePos(o, head))) { deathCause = "tree"; return gameOver(); }
+      if (fireCells.length && firePhase(animTime) === "burn" && fireCells.some(c => samePos(c, head))) {
+        deathCause = "fire"; return gameOver();
       }
 
       snake.unshift(head);
@@ -311,45 +516,36 @@
       if (samePos(head, apple)) {
         ate = true;
         score += 10;
-        scoreEl.textContent = score;
-        // האצה הדרגתית עם רצפת מהירות
-        tickInterval = Math.max(60, tickInterval - 5);
-        tongueUntil = performance.now() + 1400;  // אחרי אכילה הלשון בחוץ ליותר זמן
-        if (score >= level * 50) advanceLevel();  // 50/100/150/200...
+        eatFlashes.push({ x: head.x * CELL + CELL / 2, y: head.y * CELL + CELL / 2, start: animTime });
+        tickInterval = Math.max(70, tickInterval - SPEED.accel[settings.accel]);
+        tongueUntil = animTime + 1400;
+        playSound("eat");
+        updateHUD();
+        if (score >= level * 50) { startTransition(); return; }   // freeze & transition
         placeApple();
       } else {
         snake.pop();
       }
 
-      // פרי בורח (רק בשלב הגשם), לאט — כל 4 צעדים
-      if (fleeing && !ate && moveTicks % 4 === 0) fleeApple();
+      if (fleeing && !ate && moveTicks % SPEED.flee[settings.flee] === 0) fleeApple();
     }
 
-    function cellCenter(pos) {
-      return { x: pos.x * CELL + CELL / 2, y: pos.y * CELL + CELL / 2 };
-    }
+    // ================= DRAWING =================
+    const cellCenter = pos => ({ x: pos.x * CELL + CELL / 2, y: pos.y * CELL + CELL / 2 });
 
-    // עלה מצויר בודד (צורת עלה עם עורק אמצעי)
     function drawLeaf(l) {
       ctx.save();
-      ctx.translate(l.x, l.y);
-      ctx.rotate(l.angle);
-      ctx.fillStyle = `rgba(${l.accent ? theme.accentLeaf : theme.leaf}, ${l.a})`;
+      ctx.translate(l.x, l.y); ctx.rotate(l.angle);
+      ctx.fillStyle = "rgba(" + (l.accent ? theme.accentLeaf : theme.leaf) + "," + l.a + ")";
       ctx.beginPath();
       ctx.moveTo(0, -l.size);
       ctx.quadraticCurveTo(l.size * 0.7, 0, 0, l.size);
       ctx.quadraticCurveTo(-l.size * 0.7, 0, 0, -l.size);
       ctx.fill();
-      ctx.strokeStyle = "rgba(5,46,22,0.35)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(0, -l.size * 0.85);
-      ctx.lineTo(0, l.size * 0.85);
-      ctx.stroke();
+      ctx.strokeStyle = "rgba(5,46,22,0.35)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(0, -l.size * 0.85); ctx.lineTo(0, l.size * 0.85); ctx.stroke();
       ctx.restore();
     }
-
-    // פרח מצויר — עלי כותרת סביב מרכז (הצבע מפלטת הנושא)
     function drawFlower(fl, idx) {
       ctx.fillStyle = theme.flowers[idx % theme.flowers.length];
       for (let i = 0; i < 5; i++) {
@@ -359,297 +555,234 @@
         ctx.fill();
       }
       ctx.fillStyle = "#fde047";
-      ctx.beginPath();
-      ctx.arc(fl.x, fl.y, fl.r * 0.72, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(fl.x, fl.y, fl.r * 0.72, 0, Math.PI * 2); ctx.fill();
     }
-
-    // רקע ג'ונגל מצויר — גרדיאנט לפי הנושא, זוהר שמיים למעלה, עלים ופרחים
     function drawJungleBackground() {
       const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      g.addColorStop(0, theme.bgTop);
-      g.addColorStop(1, theme.bgBottom);
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // זוהר אור עדין שמבצבץ מבין הצמרות (בגוון הנושא)
-      const sky = ctx.createRadialGradient(canvas.width / 2, -40, 20, canvas.width / 2, -40, 280);
-      sky.addColorStop(0, `rgba(${theme.glow},${theme.glowA})`);
-      sky.addColorStop(1, `rgba(${theme.glow},0)`);
-      ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+      g.addColorStop(0, theme.bgTop); g.addColorStop(1, theme.bgBottom);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const sky = ctx.createRadialGradient(canvas.width/2, -50, 25, canvas.width/2, -50, 350);
+      sky.addColorStop(0, "rgba(" + theme.glow + "," + theme.glowA + ")");
+      sky.addColorStop(1, "rgba(" + theme.glow + ",0)");
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, canvas.width, canvas.height);
       LEAVES.forEach(drawLeaf);
       FLOWERS.forEach(drawFlower);
     }
-
-    // מכשול = גזע עץ עם קליפה, וצמרת עלים בקצה העליון
     function drawTrunk(o) {
       const x = o.x * CELL, y = o.y * CELL;
-      // גזע — גרדיאנט חום עם קליפה
       const g = ctx.createLinearGradient(x, 0, x + CELL, 0);
-      g.addColorStop(0, theme.trunkDark);
-      g.addColorStop(0.5, theme.trunkMid);
-      g.addColorStop(1, theme.trunkDark);
-      ctx.fillStyle = g;
-      ctx.fillRect(x + 3, y, CELL - 6, CELL);
-      // קווי קליפה אנכיים
-      ctx.strokeStyle = "rgba(0,0,0,0.28)";
-      ctx.lineWidth = 1.5;
-      for (const dx of [-3, 2]) {
-        ctx.beginPath();
-        ctx.moveTo(x + CELL / 2 + dx, y);
-        ctx.lineTo(x + CELL / 2 + dx, y + CELL);
-        ctx.stroke();
-      }
-      // צמרת עלים על הקצה העליון של הגזע
+      g.addColorStop(0, theme.trunkDark); g.addColorStop(0.5, theme.trunkMid); g.addColorStop(1, theme.trunkDark);
+      ctx.fillStyle = g; ctx.fillRect(x + 4, y, CELL - 8, CELL);
+      ctx.strokeStyle = "rgba(0,0,0,0.28)"; ctx.lineWidth = 1.5;
+      for (const dx of [-4, 3]) { ctx.beginPath(); ctx.moveTo(x + CELL/2 + dx, y); ctx.lineTo(x + CELL/2 + dx, y + CELL); ctx.stroke(); }
       const hasAbove = obstacles.some(t => t.x === o.x && t.y === o.y - 1);
       if (!hasAbove) {
         const cx = x + CELL / 2, cy = y - CELL * 0.15;
         ctx.fillStyle = theme.canopyDark;
-        for (const [ox, oy, r] of [[-10, 3, 12], [10, 3, 12], [0, -9, 14], [0, 5, 13]]) {
-          ctx.beginPath();
-          ctx.arc(cx + ox, cy + oy, r, 0, Math.PI * 2);
-          ctx.fill();
+        for (const [ox, oy, r] of [[-0.42,0.12,0.5],[0.42,0.12,0.5],[0,-0.38,0.58],[0,0.2,0.54]]) {
+          ctx.beginPath(); ctx.arc(cx + ox*CELL, cy + oy*CELL, r*CELL, 0, Math.PI*2); ctx.fill();
         }
         ctx.fillStyle = theme.canopyLight;
-        for (const [ox, oy, r] of [[-6, -2, 6], [6, -2, 6], [0, -5, 7]]) {
-          ctx.beginPath();
-          ctx.arc(cx + ox, cy + oy, r, 0, Math.PI * 2);
-          ctx.fill();
+        for (const [ox, oy, r] of [[-0.25,-0.08,0.25],[0.25,-0.08,0.25],[0,-0.2,0.29]]) {
+          ctx.beginPath(); ctx.arc(cx + ox*CELL, cy + oy*CELL, r*CELL, 0, Math.PI*2); ctx.fill();
         }
       }
     }
-
-    // הכדור = פרי ג'ונגל (הצבע מגיע מנושא השלב) עם עלה קטן
     function drawFruit(pos) {
       const c = cellCenter(pos);
+      const bob = Math.sin(animTime / 300) * 3;   // gentle hover
+      const cy = c.y + bob;
       const r = CELL * 0.36;
       ctx.fillStyle = theme.fruit;
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(c.x, cy, r, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "rgba(255,255,255,0.5)";
-      ctx.beginPath();
-      ctx.arc(c.x - r * 0.3, c.y - r * 0.35, r * 0.25, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(c.x - r*0.3, cy - r*0.35, r*0.25, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = theme.fruitLeaf;
-      ctx.beginPath();
-      ctx.ellipse(c.x + r * 0.35, c.y - r * 0.9, r * 0.45, r * 0.22, -0.7, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.ellipse(c.x + r*0.35, cy - r*0.9, r*0.45, r*0.22, -0.7, 0, Math.PI*2); ctx.fill();
     }
-
+    function drawEatFlashes() {
+      eatFlashes = eatFlashes.filter(f => animTime - f.start < 350);
+      for (const f of eatFlashes) {
+        const t = (animTime - f.start) / 350;
+        ctx.strokeStyle = "rgba(255,255,255," + (1 - t) + ")";
+        ctx.lineWidth = 3 * (1 - t) + 1;
+        ctx.beginPath(); ctx.arc(f.x, f.y, CELL * 0.3 + t * CELL * 0.9, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+    function drawFireCells() {
+      if (!fireCells.length) return;
+      const phase = firePhase(animTime);
+      for (const cell of fireCells) {
+        const x = cell.x * CELL, y = cell.y * CELL;
+        ctx.fillStyle = "#1c1917";
+        ctx.beginPath(); ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, 5); ctx.fill();
+        if (phase === "warn") {
+          const a = 0.25 + 0.4 * Math.abs(Math.sin(animTime / 90));
+          ctx.fillStyle = "rgba(249,115,22," + a + ")";
+          ctx.beginPath(); ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, 5); ctx.fill();
+        } else if (phase === "burn") {
+          const cx = x + CELL / 2;
+          const flick = Math.abs(Math.sin((animTime + cell.x * 120 + cell.y * 90) / 70));
+          const h = CELL * (0.7 + 0.25 * flick);
+          const grd = ctx.createLinearGradient(0, y + CELL, 0, y + CELL - h);
+          grd.addColorStop(0, "#f59e0b"); grd.addColorStop(0.5, "#ef4444"); grd.addColorStop(1, "rgba(250,204,21,0.9)");
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.moveTo(x + 4, y + CELL);
+          ctx.quadraticCurveTo(x + 2, y + CELL - h * 0.6, cx, y + CELL - h);
+          ctx.quadraticCurveTo(x + CELL - 2, y + CELL - h * 0.6, x + CELL - 4, y + CELL);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = "rgba(254,240,138,0.9)";
+          ctx.beginPath(); ctx.ellipse(cx, y + CELL - h * 0.35, CELL * 0.14, h * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
     function drawSnake() {
-      if (!snake.length) return;
+      if (!snake || !snake.length) return;
       const pts = snake.map(cellCenter);
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-
-      // ציור הגוף כשביל עבה ורציף, עם פיצול בקפיצות wrap
+      ctx.lineJoin = "round"; ctx.lineCap = "round";
       function strokeBody(width, color) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
+        ctx.strokeStyle = color; ctx.lineWidth = width;
+        ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length; i++) {
-          const dx = Math.abs(pts[i].x - pts[i - 1].x);
-          const dy = Math.abs(pts[i].y - pts[i - 1].y);
-          if (dx > CELL * 1.5 || dy > CELL * 1.5) {
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(pts[i].x, pts[i].y);
-          } else {
-            ctx.lineTo(pts[i].x, pts[i].y);
-          }
+          const dx = Math.abs(pts[i].x - pts[i-1].x), dy = Math.abs(pts[i].y - pts[i-1].y);
+          if (dx > CELL * 1.5 || dy > CELL * 1.5) { ctx.stroke(); ctx.beginPath(); ctx.moveTo(pts[i].x, pts[i].y); }
+          else ctx.lineTo(pts[i].x, pts[i].y);
         }
         ctx.stroke();
       }
-
-      strokeBody(CELL - 1, "#166534");        // מתאר כהה
-      strokeBody(CELL - 6, "#22c55e");        // גוף ירוק בהיר
-
-      // כתמי ג'ונגל לאורך הגוף
+      strokeBody(CELL - 1, "#166534");
+      strokeBody(CELL - 7, "#22c55e");
       ctx.fillStyle = "#065f46";
       for (let i = 1; i < snake.length; i += 2) {
-        ctx.beginPath();
-        ctx.arc(pts[i].x, pts[i].y, CELL * 0.13, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, CELL * 0.13, 0, Math.PI * 2); ctx.fill();
       }
-
       drawHead(pts[0]);
     }
-
     function drawHead(c) {
-      const f = dir;                          // כיוון קדימה
-      const p = { x: -dir.y, y: dir.x };      // וקטור ניצב
-
-      // לשון מפוצלת: מבצבצת בקצרה כל כמה שניות, ויוצאת יותר בזמן אכילה
-      const now = performance.now();
-      const eating = now < tongueUntil;
-      const idleFlick = (now % 3000) < 450;   // הצצה קצרה כל 3 שניות
+      const f = dir, p = { x: -dir.y, y: dir.x };
+      const eating = animTime < tongueUntil;
+      const idleFlick = (animTime % 3000) < 450;
       if (eating || idleFlick) {
-        const flick = 0.6 + 0.4 * Math.abs(Math.sin(now / 50));
+        const flick = 0.6 + 0.4 * Math.abs(Math.sin(animTime / 50));
         const len = CELL * (eating ? 0.62 : 0.42) * flick;
         const base = { x: c.x + f.x * CELL * 0.42, y: c.y + f.y * CELL * 0.42 };
         const tip = { x: base.x + f.x * len, y: base.y + f.y * len };
         const fork = len * 0.4;
-        ctx.strokeStyle = "#ef4444";
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = "#ef4444"; ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(base.x, base.y);
-        ctx.lineTo(tip.x, tip.y);
-        ctx.moveTo(tip.x, tip.y);
-        ctx.lineTo(tip.x + f.x * fork + p.x * fork * 0.7, tip.y + f.y * fork + p.y * fork * 0.7);
-        ctx.moveTo(tip.x, tip.y);
-        ctx.lineTo(tip.x + f.x * fork - p.x * fork * 0.7, tip.y + f.y * fork - p.y * fork * 0.7);
+        ctx.moveTo(base.x, base.y); ctx.lineTo(tip.x, tip.y);
+        ctx.moveTo(tip.x, tip.y); ctx.lineTo(tip.x + f.x*fork + p.x*fork*0.7, tip.y + f.y*fork + p.y*fork*0.7);
+        ctx.moveTo(tip.x, tip.y); ctx.lineTo(tip.x + f.x*fork - p.x*fork*0.7, tip.y + f.y*fork - p.y*fork*0.7);
         ctx.stroke();
       }
-
-      // ראש עגלגל
       ctx.fillStyle = "#16a34a";
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, CELL * 0.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      // לחיים ורודות חמודות
-      ctx.fillStyle = "rgba(244, 114, 182, 0.55)";
+      ctx.beginPath(); ctx.arc(c.x, c.y, CELL * 0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(244,114,182,0.55)";
       for (const s of [1, -1]) {
         ctx.beginPath();
-        ctx.arc(c.x - f.x * CELL * 0.15 + p.x * s * CELL * 0.28,
-                c.y - f.y * CELL * 0.15 + p.y * s * CELL * 0.28,
-                CELL * 0.12, 0, Math.PI * 2);
+        ctx.arc(c.x - f.x*CELL*0.15 + p.x*s*CELL*0.28, c.y - f.y*CELL*0.15 + p.y*s*CELL*0.28, CELL*0.12, 0, Math.PI*2);
         ctx.fill();
       }
-
-      // עיניים גדולות עם נצנוץ
       for (const s of [1, -1]) {
-        const ex = c.x + f.x * CELL * 0.12 + p.x * s * CELL * 0.2;
-        const ey = c.y + f.y * CELL * 0.12 + p.y * s * CELL * 0.2;
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.arc(ex, ey, CELL * 0.16, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#0f172a";
-        ctx.beginPath();
-        ctx.arc(ex + f.x * CELL * 0.05, ey + f.y * CELL * 0.05, CELL * 0.08, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.arc(ex - p.x * CELL * 0.03, ey - p.y * CELL * 0.03, CELL * 0.03, 0, Math.PI * 2);
-        ctx.fill();
+        const ex = c.x + f.x*CELL*0.12 + p.x*s*CELL*0.2, ey = c.y + f.y*CELL*0.12 + p.y*s*CELL*0.2;
+        ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(ex, ey, CELL*0.16, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#0f172a"; ctx.beginPath(); ctx.arc(ex + f.x*CELL*0.05, ey + f.y*CELL*0.05, CELL*0.08, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(ex - p.x*CELL*0.03, ey - p.y*CELL*0.03, CELL*0.03, 0, Math.PI*2); ctx.fill();
       }
-
-      // נחיריים קטנטנים בקצה החוטם
       ctx.fillStyle = "rgba(0,0,0,0.4)";
       for (const s of [1, -1]) {
         ctx.beginPath();
-        ctx.arc(c.x + f.x * CELL * 0.38 + p.x * s * CELL * 0.08,
-                c.y + f.y * CELL * 0.38 + p.y * s * CELL * 0.08,
-                CELL * 0.03, 0, Math.PI * 2);
+        ctx.arc(c.x + f.x*CELL*0.38 + p.x*s*CELL*0.08, c.y + f.y*CELL*0.38 + p.y*s*CELL*0.08, CELL*0.03, 0, Math.PI*2);
         ctx.fill();
       }
-    }
-
-    // אזור אש לסירוגין: קרקע חרוכה תמיד, הבהוב אזהרה, ולהבות בזמן בעירה
-    function drawFireCells(now) {
-      if (!fireCells.length) return;
-      const phase = firePhase(now);
-      for (const cell of fireCells) {
-        const x = cell.x * CELL, y = cell.y * CELL;
-        ctx.fillStyle = "#1c1917";
-        ctx.beginPath();
-        ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, 4);
-        ctx.fill();
-
-        if (phase === "warn") {
-          const a = 0.25 + 0.35 * Math.abs(Math.sin(now / 90));
-          ctx.fillStyle = `rgba(249,115,22,${a})`;
-          ctx.beginPath();
-          ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, 4);
-          ctx.fill();
-        } else if (phase === "burn") {
-          const cx = x + CELL / 2;
-          const flick = Math.abs(Math.sin((now + cell.x * 120 + cell.y * 90) / 70));
-          const h = CELL * (0.7 + 0.25 * flick);
-          const grd = ctx.createLinearGradient(0, y + CELL, 0, y + CELL - h);
-          grd.addColorStop(0, "#f59e0b");
-          grd.addColorStop(0.5, "#ef4444");
-          grd.addColorStop(1, "rgba(250,204,21,0.9)");
-          ctx.fillStyle = grd;
-          ctx.beginPath();
-          ctx.moveTo(x + 3, y + CELL);
-          ctx.quadraticCurveTo(x + 2, y + CELL - h * 0.6, cx, y + CELL - h);
-          ctx.quadraticCurveTo(x + CELL - 2, y + CELL - h * 0.6, x + CELL - 3, y + CELL);
-          ctx.closePath();
-          ctx.fill();
-          ctx.fillStyle = "rgba(254,240,138,0.9)";
-          ctx.beginPath();
-          ctx.ellipse(cx, y + CELL - h * 0.35, CELL * 0.14, h * 0.25, 0, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }
-
-    // באנר "שלב N" קצר עם שם הנושא
-    function drawLevelBanner() {
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,0.4)";
-      ctx.fillRect(0, canvas.height / 2 - 40, canvas.width, 80);
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "#fde047";
-      ctx.font = "bold 32px system-ui, sans-serif";
-      ctx.fillText("שלב " + level + " 🌟", canvas.width / 2, canvas.height / 2 - 10);
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "600 18px system-ui, sans-serif";
-      ctx.fillText(LEVELS[(level - 1) % LEVELS.length].name, canvas.width / 2, canvas.height / 2 + 20);
-      ctx.restore();
     }
 
     function draw() {
-      const now = performance.now();
       drawJungleBackground();
-      drawFireCells(now);
+      drawFireCells();
       obstacles.forEach(drawTrunk);
-      drawFruit(apple);
+      if (apple) drawFruit(apple);
+      drawEatFlashes();
       drawSnake();
-      if (now < levelBannerUntil) drawLevelBanner();
     }
 
-    function loop(timestamp) {
+    // ================= MAIN LOOP =================
+    function loop(ts) {
+      const dt = lastTs ? ts - lastTs : 0;
+      lastTs = ts;
       if (state === "PLAYING") {
-        if (timestamp - lastTick >= tickInterval) {
-          lastTick = timestamp;
+        animTime += dt;
+        // fire warning sound (once when the warning phase begins)
+        if (fireCells.length) {
+          const ph = firePhase(animTime);
+          if (ph === "warn" && prevFirePhase !== "warn") playSound("warn");
+          prevFirePhase = ph;
+        }
+        stepAccum += dt;
+        let guard = 0;
+        while (stepAccum >= tickInterval && state === "PLAYING" && guard++ < 5) {
+          stepAccum -= tickInterval;
           step();
         }
-        draw();
       }
+      if (state !== "HOME") draw();
       requestAnimationFrame(loop);
     }
     requestAnimationFrame(loop);
 
-    // שליטה
+    // ================= INPUT =================
     const KEY_DIRS = {
-      ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 },
-      ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 },
-      w: { x: 0, y: -1 }, s: { x: 0, y: 1 }, a: { x: -1, y: 0 }, d: { x: 1, y: 0 },
+      ArrowUp:{x:0,y:-1}, ArrowDown:{x:0,y:1}, ArrowLeft:{x:-1,y:0}, ArrowRight:{x:1,y:0},
+      w:{x:0,y:-1}, s:{x:0,y:1}, a:{x:-1,y:0}, d:{x:1,y:0},
     };
-
     document.addEventListener("keydown", (e) => {
-      if (state !== "PLAYING") {
-        if (e.key === "Enter" || e.key === " ") startGame();
-        return;
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      if ((k === "p" || k === "Escape") && (state === "PLAYING" || state === "PAUSED")) { e.preventDefault(); togglePause(); return; }
+      if (state === "READY") { if (KEY_DIRS[k]) { e.preventDefault(); beginPlayFromReady(); } return; }
+      if (state === "PLAYING") {
+        const d = KEY_DIRS[k]; if (!d) return; e.preventDefault();
+        if (d.x === -dir.x && d.y === -dir.y) return;   // no direct reversal
+        nextDir = d; return;
       }
-      const d = KEY_DIRS[e.key];
-      if (!d) return;
-      e.preventDefault();
-      // מניעת היפוך ישיר לתוך הגוף (נבדק מול הכיוון הנוכחי)
-      if (d.x === -dir.x && d.y === -dir.y) return;
-      nextDir = d;
+      if (state === "GAMEOVER") { if (k === "Enter" || k === " ") startReady(); return; }
+      // COUNTDOWN / TRANSITION / HOME / PAUSED: ignore movement keys
     });
 
-    document.getElementById("startBtn").addEventListener("click", startGame);
-    document.getElementById("restartBtn").addEventListener("click", startGame);
+    // ================= SETTINGS UI =================
+    const setStart = $("setStart"), setAccel = $("setAccel"), setFlee = $("setFlee");
+    let settingsReturn = "home";
+    function syncSettingsUI() { setStart.value = settings.start; setAccel.value = settings.accel; setFlee.value = settings.flee; }
+    function openSettings(from) { settingsReturn = from; syncSettingsUI(); hideAllOverlays(); settingsScreen.classList.remove("hidden"); }
+    function closeSettings() {
+      settingsScreen.classList.add("hidden");
+      if (settingsReturn === "pause") pauseScreen.classList.remove("hidden");
+      else homeScreen.classList.remove("hidden");
+    }
+    setStart.addEventListener("change", () => { settings.start = setStart.value; saveSettings(); });
+    setAccel.addEventListener("change", () => { settings.accel = setAccel.value; saveSettings(); });
+    setFlee.addEventListener("change", () => { settings.flee = setFlee.value; saveSettings(); });
+
+    // ================= BUTTON WIRING =================
+    $("playBtn").addEventListener("click", startReady);
+    $("homeSettingsBtn").addEventListener("click", () => { initAudio(); openSettings("home"); });
+    $("settingsBackBtn").addEventListener("click", closeSettings);
+    $("pauseBtn").addEventListener("click", togglePause);
+    $("resumeBtn").addEventListener("click", resumeFromPause);
+    $("pauseRestartBtn").addEventListener("click", startReady);
+    $("pauseSettingsBtn").addEventListener("click", () => openSettings("pause"));
+    $("pauseHomeBtn").addEventListener("click", goHome);
+    $("goRestartBtn").addEventListener("click", startReady);
+    $("goHomeBtn").addEventListener("click", goHome);
+
+    const muteBtn = $("muteBtn");
+    function refreshMute() { muteBtn.textContent = muted ? "🔇" : "🔊"; }
+    muteBtn.addEventListener("click", () => { muted = !muted; localStorage.setItem("snakeMuted", muted ? "1" : "0"); refreshMute(); });
+
+    // ================= INIT =================
+    refreshMute();
+    syncSettingsUI();
+    updateHUD();
   </script>
 </body>
 </html>

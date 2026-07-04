@@ -1,29 +1,41 @@
 # Snake 🐍
 
-משחק Snake קלאסי בדפדפן — קובץ HTML יחיד, בלי התקנות ובלי תלויות.
+A jungle-themed Snake game in the browser — a single HTML file, no installs, no dependencies.
 
-## איך מריצים
-פשוט פותחים את הקובץ `index.html` בכל דפדפן (לחיצה כפולה עליו, או גרירה לחלון הדפדפן).
+## How to run
+Just open `index.html` in any browser (double-click it, or drag it into a browser window).
 
-## איך משחקים
-- לוחצים על **התחל משחק** (או Enter / רווח).
-- שולטים בנחש עם **מקשי החצים** או **W A S D**.
-- אוכלים פירות כדי לגדול ולצבור ניקוד — כל פרי = 10 נקודות.
-- הנחש **עובר דרך הקירות** ויוצא מהצד הנגדי של הלוח.
-- נזהרים מ**גוף הנחש עצמו** ומ**גזעי העצים** — פגיעה בהם מסיימת את המשחק.
+## How to play
+- On the **home screen** press **PLAY** (or open **SETTINGS**).
+- The game waits until you're ready: press any **arrow key** or **WASD**, then a **3-2-1** countdown starts.
+- Steer the snake with the **arrow keys** or **W A S D**.
+- Eat fruit to grow and score — each fruit = 10 points.
+- The snake **passes through the walls** and comes out the other side.
+- You die if you hit **yourself**, a **tree**, or **fire**.
+- **Pause** any time with the **⏸ button**, or the **P** / **Esc** keys.
 
-## שלבים
-עולים שלב כל 50 נקודות (50 / 100 / 150 / 200 ...), וכל שלב עם נושא ג'ונגל ומנגנון משלו:
-1. **יער ירוק** — השלב הקלאסי.
-2. **ג'ונגל שקיעה** 🌅 — פריסת עצים מורכבת יותר.
-3. **ג'ונגל גשם** 🌧️ — הפרי **בורח** לאט מהנחש.
-4. **ג'ונגל וולקני** 🌋 — אזור **אש לסירוגין**: כשהוא בוער אסור לעבור, מחכים שיכבה (יש הבהוב אזהרה לפני הצתה).
+## Stages
+You advance a stage every 50 points. Each stage has its own jungle theme and mechanic,
+and every transition shows a stage card and a fresh 3-2-1 countdown so you're never
+caught off guard:
+1. **Green Forest** — open space to warm up.
+2. **Sunset Jungle** 🌅 — more trees, still fair gaps.
+3. **Rain Jungle** 🌧️ — the fruit slowly creeps away from you.
+4. **Volcanic Jungle** 🌋 — a fire passage that ignites on and off (with a warning
+   flicker before it lights); cross it only while it's out.
 
-אחרי שלב 4 הנושאים חוזרים בלולאה, והמהירות ממשיכה לעלות.
+After stage 4 the themes loop and the speed keeps rising.
 
-## פיצ'רים
-- 4 נושאי ג'ונגל מצוירים, כל אחד עם צבעים, פרחים ופירות משלו.
-- נחש חמוד עם עיניים ולחיים, ולשון מפוצלת שמבצבצת כל כמה שניות — וליותר זמן בכל אכילה.
-- ניקוד חי + שמירת שיא בין משחקים (נשמר בדפדפן).
-- האצה הדרגתית — ככל שמתקדמים, הנחש נהיה מהיר יותר.
-- מסך התחלה ומסך Game Over עם אפשרות לשחק שוב.
+## Settings
+Reachable from the home screen and the pause menu:
+- **Starting speed** — Slow / Normal / Fast.
+- **Acceleration** — how quickly the snake speeds up.
+- **Fruit speed (Stage 3)** — how fast the fleeing fruit moves.
+
+## Features
+- Home screen, ready/countdown, safe stage transitions, pause, settings, and a
+  detailed Game Over screen (score, best, stage reached, and the cause of death).
+- 4 hand-drawn jungle themes, a cute snake with eyes, cheeks and a flicking tongue.
+- Live HUD: score, best, current stage and points to the next stage, plus a progress bar.
+- Gentle animations (hovering fruit, eat pop) and soft sound effects with a mute button.
+- High score saved between games (in the browser).
