@@ -6,9 +6,9 @@
   <title>Snake 🐍</title>
   <style>
     :root {
-      --bg1: #0f172a;
-      --bg2: #1e293b;
-      --accent: #38bdf8;
+      --bg1: #052e16;
+      --bg2: #14532d;
+      --accent: #a3e635;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -25,7 +25,7 @@
     }
     h1 {
       font-size: 2rem;
-      background: linear-gradient(90deg, #34d399, #38bdf8, #a78bfa);
+      background: linear-gradient(90deg, #bef264, #22c55e, #fbbf24);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
@@ -45,7 +45,7 @@
     }
     canvas {
       display: block;
-      background: #0b1220;
+      background: #0a2618;
     }
     .overlay {
       position: absolute;
@@ -56,7 +56,7 @@
       justify-content: center;
       gap: 12px;
       text-align: center;
-      background: rgba(8, 15, 30, 0.85);
+      background: rgba(5, 30, 15, 0.86);
       backdrop-filter: blur(3px);
       padding: 20px;
     }
@@ -68,8 +68,8 @@
       padding: 12px 28px;
       font-size: 1rem;
       font-weight: 700;
-      color: #0b1220;
-      background: linear-gradient(90deg, #34d399, #38bdf8);
+      color: #052e16;
+      background: linear-gradient(90deg, #bef264, #22c55e);
       border: none;
       border-radius: 999px;
       cursor: pointer;
@@ -121,6 +121,7 @@
     let snake, dir, nextDir, apple, obstacles, score, highScore, tickInterval;
     let state = "MENU";                    // MENU | PLAYING | GAME_OVER
     let lastTick = 0;
+    let tongueUntil = 0;                    // עד מתי הלשון בחוץ (אחרי אכילה)
 
     highScore = Number(localStorage.getItem("snakeHighScore")) || 0;
     highEl.textContent = highScore;
@@ -131,6 +132,14 @@
       { x: 14, y: 12 }, { x: 15, y: 12 }, { x: 16, y: 12 },
       { x: 9, y: 15 }, { x: 9, y: 16 }, { x: 9, y: 17 },
     ];
+
+    // כתמי עלווה סטטיים לרקע הג'ונגל
+    const FOLIAGE = Array.from({ length: 18 }, (_, i) => ({
+      x: (i * 97) % canvas.width,
+      y: (i * 53 + 30) % canvas.height,
+      r: 30 + (i * 17) % 40,
+      a: 0.04 + (i % 3) * 0.02,
+    }));
 
     function samePos(a, b) { return a.x === b.x && a.y === b.y; }
 
@@ -195,33 +204,181 @@
         scoreEl.textContent = score;
         // האצה הדרגתית עם רצפת מהירות
         tickInterval = Math.max(60, tickInterval - 5);
+        tongueUntil = performance.now() + 800;   // הלשון יוצאת לרגע אחרי אכילה
         placeApple();
       } else {
         snake.pop();
       }
     }
 
-    function drawCell(pos, color, radius = 5) {
-      const x = pos.x * CELL, y = pos.y * CELL;
-      ctx.fillStyle = color;
+    function cellCenter(pos) {
+      return { x: pos.x * CELL + CELL / 2, y: pos.y * CELL + CELL / 2 };
+    }
+
+    // רקע ג'ונגלי — גרדיאנט ירוק כהה עם כתמי עלווה
+    function drawJungleBackground() {
+      const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      g.addColorStop(0, "#14532d");
+      g.addColorStop(1, "#052e16");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (const spot of FOLIAGE) {
+        ctx.fillStyle = `rgba(132, 204, 22, ${spot.a})`;
+        ctx.beginPath();
+        ctx.arc(spot.x, spot.y, spot.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // מכשול = בול עץ ג'ונגלי עם טבעות
+    function drawObstacle(o) {
+      const x = o.x * CELL, y = o.y * CELL;
+      ctx.fillStyle = "#7c4a21";
       ctx.beginPath();
-      ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, radius);
+      ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, 5);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x + CELL / 2, y + CELL / 2, CELL * 0.28, 0, Math.PI * 2);
+      ctx.moveTo(x + CELL / 2 + CELL * 0.14, y + CELL / 2);
+      ctx.arc(x + CELL / 2, y + CELL / 2, CELL * 0.14, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // הכדור = פרי ג'ונגל אדום עם עלה קטן
+    function drawFruit(pos) {
+      const c = cellCenter(pos);
+      const r = CELL * 0.36;
+      ctx.fillStyle = "#ef4444";
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.beginPath();
+      ctx.arc(c.x - r * 0.3, c.y - r * 0.35, r * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#22c55e";
+      ctx.beginPath();
+      ctx.ellipse(c.x + r * 0.35, c.y - r * 0.9, r * 0.45, r * 0.22, -0.7, 0, Math.PI * 2);
       ctx.fill();
     }
 
+    function drawSnake() {
+      if (!snake.length) return;
+      const pts = snake.map(cellCenter);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      // ציור הגוף כשביל עבה ורציף, עם פיצול בקפיצות wrap
+      function strokeBody(width, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+          const dx = Math.abs(pts[i].x - pts[i - 1].x);
+          const dy = Math.abs(pts[i].y - pts[i - 1].y);
+          if (dx > CELL * 1.5 || dy > CELL * 1.5) {
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pts[i].x, pts[i].y);
+          } else {
+            ctx.lineTo(pts[i].x, pts[i].y);
+          }
+        }
+        ctx.stroke();
+      }
+
+      strokeBody(CELL - 1, "#166534");        // מתאר כהה
+      strokeBody(CELL - 6, "#22c55e");        // גוף ירוק בהיר
+
+      // כתמי ג'ונגל לאורך הגוף
+      ctx.fillStyle = "#065f46";
+      for (let i = 1; i < snake.length; i += 2) {
+        ctx.beginPath();
+        ctx.arc(pts[i].x, pts[i].y, CELL * 0.13, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      drawHead(pts[0]);
+    }
+
+    function drawHead(c) {
+      const f = dir;                          // כיוון קדימה
+      const p = { x: -dir.y, y: dir.x };      // וקטור ניצב
+
+      // לשון מפוצלת שמבצבצת (בעיקר לרגע אחרי אכילה)
+      const now = performance.now();
+      if (now < tongueUntil) {
+        const flick = 0.6 + 0.4 * Math.abs(Math.sin(now / 50));
+        const len = CELL * 0.55 * flick;
+        const base = { x: c.x + f.x * CELL * 0.42, y: c.y + f.y * CELL * 0.42 };
+        const tip = { x: base.x + f.x * len, y: base.y + f.y * len };
+        const fork = len * 0.4;
+        ctx.strokeStyle = "#ef4444";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(base.x, base.y);
+        ctx.lineTo(tip.x, tip.y);
+        ctx.moveTo(tip.x, tip.y);
+        ctx.lineTo(tip.x + f.x * fork + p.x * fork * 0.7, tip.y + f.y * fork + p.y * fork * 0.7);
+        ctx.moveTo(tip.x, tip.y);
+        ctx.lineTo(tip.x + f.x * fork - p.x * fork * 0.7, tip.y + f.y * fork - p.y * fork * 0.7);
+        ctx.stroke();
+      }
+
+      // ראש עגלגל
+      ctx.fillStyle = "#16a34a";
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, CELL * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // לחיים ורודות חמודות
+      ctx.fillStyle = "rgba(244, 114, 182, 0.55)";
+      for (const s of [1, -1]) {
+        ctx.beginPath();
+        ctx.arc(c.x - f.x * CELL * 0.15 + p.x * s * CELL * 0.28,
+                c.y - f.y * CELL * 0.15 + p.y * s * CELL * 0.28,
+                CELL * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // עיניים גדולות עם נצנוץ
+      for (const s of [1, -1]) {
+        const ex = c.x + f.x * CELL * 0.12 + p.x * s * CELL * 0.2;
+        const ey = c.y + f.y * CELL * 0.12 + p.y * s * CELL * 0.2;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(ex, ey, CELL * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#0f172a";
+        ctx.beginPath();
+        ctx.arc(ex + f.x * CELL * 0.05, ey + f.y * CELL * 0.05, CELL * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(ex - p.x * CELL * 0.03, ey - p.y * CELL * 0.03, CELL * 0.03, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // נחיריים קטנטנים בקצה החוטם
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      for (const s of [1, -1]) {
+        ctx.beginPath();
+        ctx.arc(c.x + f.x * CELL * 0.38 + p.x * s * CELL * 0.08,
+                c.y + f.y * CELL * 0.38 + p.y * s * CELL * 0.08,
+                CELL * 0.03, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      obstacles.forEach(o => drawCell(o, "#475569", 4));
-      drawCell(apple, "#f43f5e", 12);
-
-      snake.forEach((seg, i) => {
-        // גרדיאנט צבעוני לאורך הנחש
-        const t = snake.length > 1 ? i / (snake.length - 1) : 0;
-        const hue = 150 + t * 120;         // מירוק לכחול/סגול
-        const color = i === 0 ? "#fbbf24" : `hsl(${hue}, 70%, 55%)`;
-        drawCell(seg, color, i === 0 ? 8 : 5);
-      });
+      drawJungleBackground();
+      obstacles.forEach(drawObstacle);
+      drawFruit(apple);
+      drawSnake();
     }
 
     function loop(timestamp) {
