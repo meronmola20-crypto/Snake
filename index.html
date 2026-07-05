@@ -762,8 +762,10 @@
 
     // ================= FULLSCREEN =================
     function toggleFullscreen(){
-      if(!document.fullscreenElement){ (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen||function(){}).call(document.documentElement); }
-      else if(document.exitFullscreen) document.exitFullscreen();
+      try {
+        if(!document.fullscreenElement){ const r=document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen; if(r){ const p=r.call(document.documentElement); if(p&&p.catch) p.catch(()=>{}); } }
+        else if(document.exitFullscreen) document.exitFullscreen();
+      } catch(e) {}
     }
 
     // ================= BUTTON WIRING =================
